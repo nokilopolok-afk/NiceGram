@@ -42,7 +42,8 @@ data class TelegramChat(
     val preview: String,
     val timestamp: Int,
     val unreadCount: Int,
-    val isGroup: Boolean
+    val isGroup: Boolean,
+    val isDeveloper: Boolean
 )
 
 data class TelegramMessage(
@@ -51,7 +52,8 @@ data class TelegramMessage(
     val sender: String,
     val text: String,
     val timestamp: Int,
-    val outgoing: Boolean
+    val outgoing: Boolean,
+    val isDeveloper: Boolean
 )
 
 object TelegramRuntime {
@@ -372,7 +374,7 @@ class TelegramRepository(context: Context) {
                         true,
                         true,
                         true,
-                        false,
+                        true,
                         BuildConfig.TELEGRAM_API_ID,
                         BuildConfig.TELEGRAM_API_HASH,
                         appContext.resources.configuration.locales[0].toLanguageTag(),
@@ -428,7 +430,8 @@ class TelegramRepository(context: Context) {
                     preview = chat.lastMessage?.let(::messagePreview).orEmpty(),
                     timestamp = chat.lastMessage?.date ?: 0,
                     unreadCount = chat.unreadCount,
-                    isGroup = chat.type !is TdApi.ChatTypePrivate
+                    isGroup = chat.type !is TdApi.ChatTypePrivate,
+                    isDeveloper = (chat.type as? TdApi.ChatTypePrivate)?.userId == DEVELOPER_USER_ID
                 )
             }
     }
@@ -437,13 +440,18 @@ class TelegramRepository(context: Context) {
         id = message.id,
         chatId = message.chatId,
         sender = when (val sender = message.senderId) {
-            is TdApi.MessageSenderUser -> if (sender.userId == me?.id) "Ты" else "Контакт"
+            is TdApi.MessageSenderUser -> when {
+                sender.userId == me?.id -> "Ты"
+                sender.userId == DEVELOPER_USER_ID -> "Разработчик"
+                else -> "Контакт"
+            }
             is TdApi.MessageSenderChat -> "Чат"
             else -> "Telegram"
         },
         text = messagePreview(message),
         timestamp = message.date,
-        outgoing = message.isOutgoing
+        outgoing = message.isOutgoing,
+        isDeveloper = (message.senderId as? TdApi.MessageSenderUser)?.userId == DEVELOPER_USER_ID
     )
 
     private fun messagePreview(message: TdApi.Message): String = when (val content = message.content) {
@@ -517,6 +525,7 @@ class TelegramRepository(context: Context) {
     }
 
     companion object {
+        private const val DEVELOPER_USER_ID = 6226314827L
         private const val PREFERENCES = "nicegram_preferences"
         private const val KEY_ARCHIVE_ENABLED = "archive_enabled"
     }

@@ -22,8 +22,11 @@ class DeviceSecureStorage(context: Context) {
         val stored = preferences.getString(DATABASE_KEY, null)
         if (stored != null) return decrypt(stored)
 
-        val bytes = ByteArray(32).also(SecureRandom()::nextBytes)
-        val secret = Base64.encodeToString(bytes, Base64.NO_WRAP)
+        val alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+        val random = SecureRandom()
+        val secret = buildString(DATABASE_KEY_LENGTH) {
+            repeat(DATABASE_KEY_LENGTH) { append(alphabet[random.nextInt(alphabet.length)]) }
+        }
         check(preferences.edit().putString(DATABASE_KEY, encrypt(secret)).commit()) {
             "Не удалось безопасно сохранить ключ базы Telegram."
         }
@@ -70,6 +73,7 @@ class DeviceSecureStorage(context: Context) {
         private const val ANDROID_KEY_STORE = "AndroidKeyStore"
         private const val KEY_ALIAS = "nicegram_local_archive_key"
         private const val DATABASE_KEY = "tdlib_database_key"
+        private const val DATABASE_KEY_LENGTH = 32
         private const val TRANSFORMATION = "AES/GCM/NoPadding"
         private const val GCM_IV_BYTES = 12
         private const val GCM_TAG_BITS = 128

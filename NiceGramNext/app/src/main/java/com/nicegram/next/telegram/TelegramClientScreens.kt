@@ -38,6 +38,7 @@ import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentPaste
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Shield
@@ -71,6 +72,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import com.nicegram.next.proxy.ProxyLinkParser
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -515,7 +518,10 @@ private fun LiveChatRow(chat: TelegramChat, onClick: () -> Unit) {
         }
         Spacer(Modifier.width(13.dp))
         Column(Modifier.weight(1f)) {
-            Text(chat.title, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(chat.title, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (chat.isDeveloper) DeveloperBadge()
+            }
             Text(chat.preview.ifBlank { "Нет сообщений" }, color = ClientMuted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
         }
         Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -542,7 +548,10 @@ private fun LiveChatScreen(repository: TelegramRepository, chat: TelegramChat, o
         Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад", tint = Color.White) }
             Column(Modifier.weight(1f)) {
-                Text(chat.title, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(chat.title, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    if (chat.isDeveloper) DeveloperBadge()
+                }
                 val connection by repository.connectionState.collectAsState()
                 Text(connection, color = ClientMuted, fontSize = 10.sp)
             }
@@ -609,7 +618,10 @@ private fun MessageBubble(message: TelegramMessage) {
                 .padding(horizontal = 13.dp, vertical = 9.dp)
         ) {
             if (message.sender.isNotBlank() && !message.outgoing) {
-                Text(message.sender, color = ClientViolet, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(message.sender, color = ClientViolet, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                    if (message.isDeveloper) DeveloperBadge()
+                }
             }
             Text(message.text, color = Color.White, fontSize = 14.sp, modifier = Modifier.padding(top = 2.dp))
             Text(formatTime(message.timestamp), color = Color(0xFFD8CCDF), fontSize = 9.sp, modifier = Modifier.align(Alignment.End).padding(top = 4.dp))
@@ -638,17 +650,25 @@ private fun ArchiveScreen(repository: TelegramRepository) {
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(filtered, key = { "${it.chatId}:${it.messageId}" }) { entry ->
-                    Column(
-                        Modifier.fillMaxWidth().clip(RoundedCornerShape(17.dp)).background(ClientPanel).padding(14.dp)
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(entry.chatTitle.ifBlank { "Чат" }, color = ClientViolet, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                            Text(formatTime(entry.timestamp.toInt()), color = ClientMuted, fontSize = 10.sp)
+                        val clipboard = LocalClipboardManager.current
+                        Row(
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(17.dp)).background(ClientPanel)
+                                .padding(start = 14.dp, end = 5.dp, top = 10.dp, bottom = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(entry.chatTitle.ifBlank { "Чат" }, color = ClientViolet, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                                    Text(formatTime(entry.timestamp.toInt()), color = ClientMuted, fontSize = 10.sp)
+                                }
+                                Text(entry.text, color = Color.White, fontSize = 14.sp, modifier = Modifier.padding(top = 7.dp))
+                                Text("Удалённое сообщение · ${entry.sender}", color = ClientRed, fontSize = 10.sp, modifier = Modifier.padding(top = 7.dp))
+                            }
+                            IconButton(onClick = { clipboard.setText(AnnotatedString(entry.text)) }) {
+                                Icon(Icons.Default.ContentCopy, "Скопировать текст", tint = ClientMuted)
+                            }
                         }
-                        Text(entry.text, color = Color.White, fontSize = 14.sp, modifier = Modifier.padding(top = 7.dp))
-                        Text("Удалённое сообщение · ${entry.sender}", color = ClientRed, fontSize = 10.sp, modifier = Modifier.padding(top = 7.dp))
                     }
-                }
             }
         }
     }
@@ -755,6 +775,17 @@ private fun EmptyState(title: String, detail: String) {
             Text(title, color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 17.dp))
             Text(detail, color = ClientMuted, fontSize = 12.sp, lineHeight = 17.sp, modifier = Modifier.padding(top = 7.dp))
         }
+    }
+}
+
+@Composable
+private fun DeveloperBadge() {
+    Box(
+        Modifier.padding(start = 5.dp).size(16.dp).clip(CircleShape)
+            .background(Brush.linearGradient(listOf(ClientViolet, ClientRed))),
+        contentAlignment = Alignment.Center
+    ) {
+        Text("D", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
     }
 }
 
