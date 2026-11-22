@@ -39,6 +39,7 @@ import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Shield
@@ -621,10 +622,11 @@ private fun MessageBubble(message: TelegramMessage) {
                 )
             )
                 .background(
-                    if (message.outgoing) Brush.linearGradient(listOf(Color(0xFF8A4F9F), Color(0xFFB74764)))
-                    else Brush.linearGradient(listOf(ClientCard, ClientCard))
-                )
-                .padding(horizontal = 13.dp, vertical = 9.dp)
+                if (message.deletedAt != null) Brush.linearGradient(listOf(Color(0xFF282630), Color(0xFF282630)))
+                else if (message.outgoing) Brush.linearGradient(listOf(Color(0xFF8A4F9F), Color(0xFFB74764)))
+                else Brush.linearGradient(listOf(ClientCard, ClientCard))
+            )
+            .padding(horizontal = 13.dp, vertical = 9.dp)
         ) {
             if (message.sender.isNotBlank() && !message.outgoing) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -632,8 +634,25 @@ private fun MessageBubble(message: TelegramMessage) {
                     if (message.isDeveloper) DeveloperBadge()
                 }
             }
-            Text(message.text, color = Color.White, fontSize = 14.sp, modifier = Modifier.padding(top = 2.dp))
-            Text(formatTime(message.timestamp), color = Color(0xFFD8CCDF), fontSize = 9.sp, modifier = Modifier.align(Alignment.End).padding(top = 4.dp))
+            if (message.deletedAt != null) {
+                Row(
+                    modifier = Modifier.padding(top = 3.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.DeleteOutline, null, tint = ClientMuted, modifier = Modifier.size(14.dp))
+                    Text("Сообщение удалено", color = ClientMuted, fontSize = 10.sp, modifier = Modifier.padding(start = 4.dp))
+                }
+                Text(message.text, color = ClientMuted, fontSize = 14.sp, modifier = Modifier.padding(top = 2.dp))
+                Text(
+                    "Удалено ${formatTime(message.deletedAt)}",
+                    color = ClientMuted,
+                    fontSize = 9.sp,
+                    modifier = Modifier.align(Alignment.End).padding(top = 4.dp)
+                )
+            } else {
+                Text(message.text, color = Color.White, fontSize = 14.sp, modifier = Modifier.padding(top = 2.dp))
+                Text(formatTime(message.timestamp), color = Color(0xFFD8CCDF), fontSize = 9.sp, modifier = Modifier.align(Alignment.End).padding(top = 4.dp))
+            }
         }
     }
 }

@@ -53,7 +53,8 @@ data class TelegramMessage(
     val text: String,
     val timestamp: Int,
     val outgoing: Boolean,
-    val isDeveloper: Boolean
+    val isDeveloper: Boolean,
+    val deletedAt: Int? = null
 )
 
 object TelegramRuntime {
@@ -344,6 +345,15 @@ class TelegramRepository(context: Context) {
                 if (!update.message.isOutgoing) cacheIncoming(arrayOf(update.message))
             }
             is TdApi.UpdateDeleteMessages -> {
+                val deletedIds = update.messageIds.toSet()
+                knownMessages[update.chatId]?.let { messages ->
+                    val deletedAt = (System.currentTimeMillis() / 1000L).toInt()
+                    val updated = messages.map { message ->
+                        if (message.id in deletedIds) message.copy(deletedAt = deletedAt) else message
+                    }
+                    knownMessages[update.chatId] = updated.toMutableList()
+                    if (activeChatId == update.chatId) _messages.value = updated
+                }
                 if (update.messageIds.isNotEmpty()) {
                     database.archiveDao().markDeleted(update.chatId, update.messageIds.toList())
                 }
