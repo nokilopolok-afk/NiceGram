@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NiceGram Profile Preview</title>
+  <style>
+    :root {
+      --blue:#2a83ff;
+      --bg:#f2f2f7;
+      --card:#fff;
+      --text:#111;
+      --secondary:#777;
+      --line:#e7e7ec;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:#dfe6ef;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",sans-serif;color:var(--text)}
+    .stage{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:28px}
+    .phone{width:390px;height:844px;overflow:hidden;border-radius:42px;background:var(--bg);box-shadow:0 24px 70px #7a8799;position:relative;border:8px solid #17191d}
+    .statusbar{height:44px;padding:12px 24px 0;display:flex;justify-content:space-between;font-weight:700;font-size:14px}
+    .header{height:54px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 16px 10px}
+    .back{color:var(--blue);font-size:17px}.more{width:34px;height:34px;border-radius:50%;background:#ececf1;text-align:center;line-height:34px}
+    .profile{display:grid;grid-template-columns:58px 1fr 58px;align-items:center;padding:8px 18px 14px}
+    .avatar{width:58px;height:58px;border-radius:50%;background:linear-gradient(145deg,#61a8ff,#235ed2);display:grid;place-items:center;color:white;font-size:25px;font-weight:700}
+    .name{text-align:center}.name h1{font-size:22px;margin:0 0 4px}.name p{margin:0;color:#32a852;font-size:14px}
+    .music,.ton{height:58px;border-radius:18px;background:var(--card);display:flex;flex-direction:column;align-items:center;justify-content:center;box-shadow:0 4px 14px #00000012}
+    .music span,.ton span{font-size:10px;margin-top:3px}.music b{color:var(--blue);font-size:15px}.ton b{color:#1681ff;font-size:18px}
+    .bio{text-align:center;color:var(--secondary);font-size:14px;padding:2px 40px 16px}
+    .developer{display:inline-flex;align-items:center;gap:6px;margin-top:7px;color:#777;font-size:12px}
+    .list{margin:0 12px;background:var(--card);border-radius:18px;overflow:hidden}
+    .row{height:52px;display:flex;align-items:center;padding:0 15px;border-bottom:1px solid var(--line);font-size:16px}
+    .row:last-child{border-bottom:0}.icon{width:30px;height:30px;border-radius:8px;margin-right:12px;display:grid;place-items:center;color:white;font-size:15px}
+    .blue{background:#0a84ff}.green{background:#34c759}.purple{background:#5856d6}.orange{background:#ff9500}
+    .value{margin-left:auto;color:var(--secondary);font-size:14px}
+    .actions{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:10px 12px}
+    .action{background:var(--card);border-radius:16px;height:72px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--blue);font-size:12px}
+    .action b{font-size:22px;margin-bottom:4px}
+    .tabbar{position:absolute;bottom:0;width:100%;height:72px;background:#ffffffea;backdrop-filter:blur(16px);display:flex;justify-content:space-around;padding-top:10px;border-top:1px solid var(--line)}
+    .tab{color:#999;text-align:center;font-size:11px}.tab.active{color:var(--blue)}.tab b{display:block;font-size:20px;margin-bottom:2px}
+    body.dark{background:#111820}
+    body.dark .phone{background:#191e24;color:#fff;border-color:#050505}
+    body.dark .header .more,body.dark .music,body.dark .ton,body.dark .list,body.dark .action{background:#252b32;box-shadow:none}
+    body.dark .tabbar{background:#20252bee;border-color:#30363d}.row{border-color:var(--line)}
+  </style>
+</head>
+<body>
+  <main class="stage">
+    <section class="phone" aria-label="NiceGram профиль">
+      <div class="statusbar"><span>9:41</span><span>● ● 100%</span></div>
+      <div class="header"><span class="back">‹ Чаты</span><span class="more">•••</span></div>
+      <div class="profile">
+        <div class="music" title="Музыка под статусом"><b>♪</b><span>Lo-fi</span></div>
+        <div class="name"><div class="avatar">N</div><h1>Alex Nice</h1><p>в сети</p></div>
+        <div class="ton" title="TON Connect"><b>◆</b><span>TON</span></div>
+      </div>
+      <div class="bio">
+        iOS style profile preview
+        <div class="developer">◉ NiceGram Developer</div>
+      </div>
+      <div class="actions" aria-label="Быстрые действия">
+        <div class="action"><b>✉</b>Написать</div>
+        <div class="action"><b>☎</b>Позвонить</div>
+        <div class="action"><b>◉</b>Видео</div>
+        <div class="action"><b>↗</b>Поделиться</div>
+      </div>
+      <div class="list" aria-label="Информация профиля">
+        <div class="row"><span class="icon blue">☎</span><span>+1 234 567 890</span><span class="value">Телефон</span></div>
+        <div class="row"><span class="icon green">@</span><span>@alexnice</span><span class="value">Имя</span></div>
+        <div class="row"><span class="icon purple">◎</span><span>@nicegram</span><span class="value">Username</span></div>
+        <div class="row"><span class="icon orange">i</span><span>Информация</span><span class="value">›</span></div>
+      </div>
+      <nav class="tabbar" aria-label="Навигация">
+        <div class="tab"><b>○</b>Контакты</div>
+        <div class="tab active"><b>●</b>Чаты</div>
+        <div class="tab"><b>▣</b>Настройки</div>
+      </nav>
+    </section>
+  </main>
+  <script>
+    async function syncTheme() {
+      try {
+        const response = await fetch('/state', { cache: 'no-store' });
+        const state = await response.json();
+        document.body.classList.toggle('dark', state.theme === 'dark');
+      } catch (_) {}
+    }
+    document.addEventListener('DOMContentLoaded', syncTheme);
+    setInterval(syncTheme, 1000);
+  </script>
+</body>
+</html>
