@@ -1,6 +1,6 @@
 # NiceGram Next
 
-This is an isolated Kotlin/Jetpack Compose application scaffold. It keeps the existing NiceGram client intact while the new client is developed in phases.
+This is an isolated Kotlin/Jetpack Compose app, so the existing NiceGram client remains untouched. The first UI preview now includes animated chat, archive, and settings screens, searchable demo conversations, a sample chat, and MTProto proxy-link parsing.
 
 ## Build
 
@@ -8,8 +8,8 @@ This is an isolated Kotlin/Jetpack Compose application scaffold. It keeps the ex
 .\gradlew.bat assembleDebug
 ```
 
-GitHub Actions also builds and uploads a debug APK when this directory changes on `main`, `master`, or `rewrite`.
+GitHub Actions installs the Android 35 SDK components explicitly, runs the debug build, and uploads the APK when this directory changes on `main`, `master`, or `rewrite`.
 
-The current phase provides the Android app foundation, a dark Compose shell, Room dependencies, and a standalone Gradle wrapper. Telegram authorization, TDLib integration, database entities, and chat features are subsequent phases.
+The conversations are clearly marked as a preview: Telegram authorization, TDLib connectivity, persistent proxy storage, Room entities, and real chat data are not implemented yet. Proxy links are validated and kept in memory only; adding a proxy does not connect through it.
 
-Story publishing must follow Telegram's official eligibility checks. The client will not bypass Premium or other server-side restrictions.
+Message archival can only preserve content the app actually received before it disappears; it cannot recover messages deleted before installation or bypass Telegram's server-side behavior. Story publishing must follow Telegram's official eligibility checks; Premium or other server-side restrictions will not be bypassed.
