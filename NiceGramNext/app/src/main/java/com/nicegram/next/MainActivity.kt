@@ -75,7 +75,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
-import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -118,12 +118,12 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun NiceGramTheme(content: @Composable () -> Unit) {
     MaterialTheme(
-        colorScheme = darkColorScheme(
-            primary = Lavender,
-            secondary = Rose,
-            background = Ink,
-            surface = Panel,
-            onSurface = Color(0xFFF4F2FA)
+        colorScheme = lightColorScheme(
+            primary = Color(0xFF3390EC),
+            secondary = Color(0xFF4FAE4E),
+            background = Color(0xFFF1F1F1),
+            surface = Color.White,
+            onSurface = Color(0xFF222222)
         ),
         content = content
     )

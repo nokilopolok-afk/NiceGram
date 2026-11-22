@@ -1,6 +1,6 @@
 # NiceGram Next
 
-This is an isolated Kotlin/Jetpack Compose app, so the existing NiceGram client remains untouched. It provides an animated violet-and-red interface for TDLib authorization, live chats, Telegram chat folders, account and contact profiles with available profile photos, accessible active stories, stickers, a local deleted-message archive, and settings styled in Telegram-like sections. The NiceGram settings include local archive and MTProto proxy controls, plus an optional ghost mode.
+This is an isolated Kotlin/Jetpack Compose app, so the existing NiceGram client remains untouched. It opens with the uploaded NiceGram logo and a Start button, then runs TDLib phone/code/two-step-password authorization. After login it uses a light, Telegram-inspired chat list, profile, and settings layout with the NiceGram blue accent; custom features remain grouped separately from the standard account controls.
 
 The developer panel is shown only when the signed-in Telegram user ID is `6226314827`; a username is not used as an identity check. It displays local client statistics and non-sensitive in-memory diagnostic events, can refresh chats/stories, and can clear only the app's temporary cache after confirmation. It does not grant server-side privileges or alter Telegram account data.
 
@@ -20,4 +20,4 @@ Ghost mode sets TDLib's `online` option to false while enabled and this client d
 
 Set `NICEGRAM_API_ID` and `NICEGRAM_API_HASH` as local Gradle environment variables or GitHub Actions secrets. Obtain credentials from [my.telegram.org](https://my.telegram.org); do not commit them or post them in chat.
 
-To use a custom NiceGram avatar on the sign-in and registration screens, add a square PNG named `nicegram_avatar.png` to `app/src/main/assets/`. A 512×512 image is recommended. If the file is absent, the animated NiceGram mark is shown.
+The welcome and sign-in screens load the NiceGram logo from `app/src/main/assets/NiceGram_icon_512_transparent.png`. Replace that file to change the logo; a square transparent PNG is recommended.
