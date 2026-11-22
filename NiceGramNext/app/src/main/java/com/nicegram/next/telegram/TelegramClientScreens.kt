@@ -10,6 +10,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -45,10 +46,12 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
@@ -57,6 +60,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -69,6 +73,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -546,9 +551,13 @@ private fun LiveChatRow(chat: TelegramChat, onClick: () -> Unit) {
 }
 
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 private fun LiveChatScreen(repository: TelegramRepository, chat: TelegramChat, onBack: () -> Unit) {
     val messages by repository.messages.collectAsState()
+    val deletedArchive by repository.deletedMessages.collectAsState()
+    val clipboard = LocalClipboardManager.current
     var text by remember { mutableStateOf("") }
+    var showDeletionHistory by remember { mutableStateOf(false) }
     Column(
         Modifier.fillMaxSize().padding(
             top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 6.dp,
@@ -575,7 +584,9 @@ private fun LiveChatScreen(repository: TelegramRepository, chat: TelegramChat, o
                 item { Text("Загружаем историю…", color = ClientMuted, modifier = Modifier.padding(12.dp)) }
             }
             items(messages, key = { it.id }) { message ->
-                MessageBubble(message)
+                MessageBubble(message) {
+                    if (message.deletedAt != null) showDeletionHistory = true
+                }
             }
         }
         Row(
@@ -607,11 +618,61 @@ private fun LiveChatScreen(repository: TelegramRepository, chat: TelegramChat, o
             ) { Icon(Icons.AutoMirrored.Filled.Send, "Отправить", modifier = Modifier.size(17.dp)) }
         }
     }
+    if (showDeletionHistory) {
+        val entries = deletedArchive.filter { it.chatId == chat.id }
+        val visibleDeletedMessages = messages.filter { it.deletedAt != null }
+        ModalBottomSheet(
+            onDismissRequest = { showDeletionHistory = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = ClientPanel,
+            contentColor = Color.White
+        ) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp).padding(bottom = 24.dp)) {
+                Text("История удалений", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                Text(chat.title, color = ClientMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp, bottom = 12.dp))
+                if (entries.isEmpty() && visibleDeletedMessages.isEmpty()) {
+                    Text(
+                        "Архив не содержит удалённых сообщений из этого чата.",
+                        color = ClientMuted,
+                        fontSize = 13.sp,
+                        modifier = Modifier.padding(vertical = 18.dp)
+                    )
+                } else if (entries.isNotEmpty()) {
+                    LazyColumn(Modifier.fillMaxWidth().height(360.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(entries, key = { "${it.chatId}:${it.messageId}" }) { entry ->
+                            DeletionHistoryRow(entry.text, entry.sender, entry.timestamp.toInt()) {
+                                clipboard.setText(AnnotatedString(entry.text))
+                            }
+                        }
+                    }
+                } else {
+                    LazyColumn(Modifier.fillMaxWidth().height(360.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(visibleDeletedMessages, key = { it.id }) { message ->
+                            DeletionHistoryRow(message.text, message.sender, message.deletedAt ?: message.timestamp) {
+                                clipboard.setText(AnnotatedString(message.text))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Composable
-private fun MessageBubble(message: TelegramMessage) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = if (message.outgoing) Arrangement.End else Arrangement.Start) {
+private fun MessageBubble(message: TelegramMessage, onLongPress: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().then(
+            if (message.deletedAt != null) {
+                Modifier.pointerInput(message.id, message.deletedAt) {
+                    detectTapGestures(onLongPress = { onLongPress() })
+                }
+            } else {
+                Modifier
+            }
+        ),
+        horizontalArrangement = if (message.outgoing) Arrangement.End else Arrangement.Start
+    ) {
         Column(
             Modifier.fillMaxWidth(0.82f).clip(
                 RoundedCornerShape(
@@ -653,6 +714,22 @@ private fun MessageBubble(message: TelegramMessage) {
                 Text(message.text, color = Color.White, fontSize = 14.sp, modifier = Modifier.padding(top = 2.dp))
                 Text(formatTime(message.timestamp), color = Color(0xFFD8CCDF), fontSize = 9.sp, modifier = Modifier.align(Alignment.End).padding(top = 4.dp))
             }
+        }
+    }
+}
+
+@Composable
+private fun DeletionHistoryRow(text: String, sender: String, timestamp: Int, onCopy: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(15.dp)).background(ClientCard).padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text("${sender} · ${formatTime(timestamp)}", color = ClientMuted, fontSize = 10.sp)
+            Text(text, color = Color.White, fontSize = 13.sp, modifier = Modifier.padding(top = 5.dp))
+        }
+        IconButton(onClick = onCopy) {
+            Icon(Icons.Default.ContentCopy, "Скопировать текст", tint = ClientViolet)
         }
     }
 }

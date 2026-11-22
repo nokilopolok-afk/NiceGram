@@ -254,7 +254,6 @@ class TelegramRepository(context: Context) {
                     TdApi.SendMessage(
                         chatId,
                         null,
-                        0,
                         null,
                         null,
                         null,
