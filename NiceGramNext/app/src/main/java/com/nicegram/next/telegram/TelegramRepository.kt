@@ -252,6 +252,7 @@ class TelegramRepository(context: Context) {
                 request(
                     TdApi.SendMessage(
                         chatId,
+                        null,
                         0,
                         null,
                         null,
@@ -274,10 +275,9 @@ class TelegramRepository(context: Context) {
             try {
                 request(
                     TdApi.AddProxy(
-                        proxy.server,
-                        proxy.port,
+                        TdApi.Proxy(proxy.server, proxy.port, TdApi.ProxyTypeMtproto(proxy.secret)),
                         true,
-                        TdApi.ProxyTypeMtproto(proxy.secret)
+                        ""
                     )
                 )
                 _notice.value = "Прокси добавлен в TDLib и включён."
@@ -341,7 +341,7 @@ class TelegramRepository(context: Context) {
                 if (activeChatId == mapped.chatId) _messages.value = messages.sortedBy { it.timestamp }
                 chatObjects[mapped.chatId]?.lastMessage = update.message
                 publishChats()
-                if (!update.message.isOutgoing) cacheIncoming(listOf(update.message))
+                if (!update.message.isOutgoing) cacheIncoming(arrayOf(update.message))
             }
             is TdApi.UpdateDeleteMessages -> {
                 if (update.messageIds.isNotEmpty()) {
@@ -384,8 +384,6 @@ class TelegramRepository(context: Context) {
                     )
                 )
             }
-            is TdApi.AuthorizationStateWaitEncryptionKey ->
-                request(TdApi.CheckDatabaseEncryptionKey(secureStorage.getOrCreateTelegramDatabaseKey()))
             is TdApi.AuthorizationStateWaitPhoneNumber -> _authState.value = TelegramAuthState.Phone()
             is TdApi.AuthorizationStateWaitCode -> _authState.value = TelegramAuthState.Code()
             is TdApi.AuthorizationStateWaitPassword -> _authState.value = TelegramAuthState.Password(state.passwordHint)

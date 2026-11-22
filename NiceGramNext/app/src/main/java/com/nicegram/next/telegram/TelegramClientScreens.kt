@@ -110,26 +110,35 @@ fun TelegramClientApp(repository: TelegramRepository) {
                 TelegramAuthState.Starting -> CenteredStatus("Запускаем защищённое соединение…", loading = true)
                 TelegramAuthState.MissingCredentials -> MissingCredentialsScreen()
                 TelegramAuthState.Ready -> {
-                    if (openChat != null) {
-                        LiveChatScreen(
-                            repository = repository,
-                            chat = openChat!!,
-                            onBack = {
-                                openChat = null
-                                repository.closeChat()
-                            }
-                        )
-                    } else {
-                        LiveHome(
-                            repository = repository,
-                            selectedTab = selectedTab,
-                            onSelectTab = { selectedTab = it },
-                            onOpenChat = {
-                                openChat = it
-                                repository.openChat(it)
-                            },
-                            notice = notice
-                        )
+                    AnimatedContent(
+                        targetState = openChat,
+                        transitionSpec = {
+                            (fadeIn() + slideInHorizontally { width -> if (targetState != null) width / 12 else -width / 12 }) togetherWith
+                                (fadeOut() + slideOutHorizontally { width -> if (targetState != null) -width / 12 else width / 12 })
+                        },
+                        label = "chat-navigation"
+                    ) { chat ->
+                        if (chat != null) {
+                            LiveChatScreen(
+                                repository = repository,
+                                chat = chat,
+                                onBack = {
+                                    openChat = null
+                                    repository.closeChat()
+                                }
+                            )
+                        } else {
+                            LiveHome(
+                                repository = repository,
+                                selectedTab = selectedTab,
+                                onSelectTab = { selectedTab = it },
+                                onOpenChat = {
+                                    openChat = it
+                                    repository.openChat(it)
+                                },
+                                notice = notice
+                            )
+                        }
                     }
                 }
                 is TelegramAuthState.Phone -> AuthForm(
