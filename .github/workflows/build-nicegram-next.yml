@@ -11,6 +11,9 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      NICEGRAM_API_ID: ${{ secrets.NICEGRAM_API_ID }}
+      NICEGRAM_API_HASH: ${{ secrets.NICEGRAM_API_HASH }}
 
     steps:
       - uses: actions/checkout@v4

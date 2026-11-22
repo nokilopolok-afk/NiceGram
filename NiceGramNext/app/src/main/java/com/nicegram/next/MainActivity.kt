@@ -97,6 +97,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.nicegram.next.proxy.ProxyLink
 import com.nicegram.next.proxy.ProxyLinkParser
+import com.nicegram.next.telegram.TelegramClientApp
+import com.nicegram.next.telegram.TelegramRuntime
 
 private val Ink = Color(0xFF090A10)
 private val Panel = Color(0xFF141620)
@@ -108,7 +110,8 @@ private val Muted = Color(0xFF85899B)
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { NiceGramTheme { NiceGramApp() } }
+        val telegram = TelegramRuntime.get(applicationContext)
+        setContent { NiceGramTheme { TelegramClientApp(telegram) } }
     }
 }
 

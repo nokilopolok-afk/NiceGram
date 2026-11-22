@@ -9,12 +9,31 @@ android {
     namespace = "com.nicegram.next"
     compileSdk = 35
 
+    val localProperties = java.util.Properties().apply {
+        val localPropertiesFile = rootProject.file("local.properties")
+        if (localPropertiesFile.exists()) {
+            localPropertiesFile.inputStream().use(::load)
+        }
+    }
+    val apiId = providers.environmentVariable("NICEGRAM_API_ID")
+        .orElse(localProperties.getProperty("NICEGRAM_API_ID", ""))
+        .get()
+    val apiHash = providers.environmentVariable("NICEGRAM_API_HASH")
+        .orElse(localProperties.getProperty("NICEGRAM_API_HASH", ""))
+        .get()
+
     defaultConfig {
         applicationId = "com.nicegram.next"
-        minSdk = 23
+        minSdk = 26
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
+        buildConfigField("int", "TELEGRAM_API_ID", apiId.toIntOrNull()?.toString() ?: "0")
+        buildConfigField(
+            "String",
+            "TELEGRAM_API_HASH",
+            "\"${apiHash.replace("\\", "\\\\").replace("\"", "\\\"")}\""
+        )
     }
 
     compileOptions {
@@ -28,6 +47,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -52,6 +72,7 @@ dependencies {
     implementation("androidx.room:room-runtime:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")
     kapt("androidx.room:room-compiler:2.6.1")
+    implementation("io.github.tdlib-android:core:0.1.1")
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
 
