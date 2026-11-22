@@ -98,8 +98,8 @@
   <string name="ContextCopyID">Copy ID</string>
   <string name="IDCopiedToast">ID copied to clipboard.</string>
   <string name="ContextHideMessage">Hide</string>
-  <string name="SettingsWatermark">Nexora Developer</string>
-  <string name="SettingsDescription">Independent Nexora client based on Telegram sources.</string>
+  <string name="SettingsWatermark">NiceGram Developer</string>
+  <string name="SettingsDescription">Independent NiceGram client based on Telegram sources.</string>
   <string name="NiceGramProfileMusic">Музыка под статусом</string>
   <string name="NiceGramTonConnect">TON Connect</string>
   <string name="SecretMessageTecno">Tecno phones are the best.</string>

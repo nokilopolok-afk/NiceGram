@@ -12,8 +12,8 @@
 -->
 
 <resources>
-    <string name="exteraAppName" translatable="false">Nexora</string>
-    <string name="Preferences">Настройки Nexora</string>
+    <string name="exteraAppName" translatable="false">NiceGram</string>
+    <string name="Preferences">Настройки NiceGram</string>
 
     <!-- Main Menu -->
     <string name="Links">Links</string>

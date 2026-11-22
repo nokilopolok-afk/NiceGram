@@ -58,7 +58,7 @@ public class AyuConstants {
     public static String BUILD_STORE_PACKAGE = "com.android.vending";
     public static String BUILD_ORIGINAL_PACKAGE = "org.telegram.messenger";
 
-    private static final String ADMIN_PREFS = "nexora_admin";
+    private static final String ADMIN_PREFS = "nicegram_admin";
 
     public static String getChannelUsername() {
         Context context = ApplicationLoader.applicationContext;
