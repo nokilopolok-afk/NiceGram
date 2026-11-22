@@ -10,6 +10,11 @@
   <string name="UseScheduledMessages">Schedule messages</string>
   <string name="SpyEssentialsHeader">Spy essentials</string>
   <string name="SaveDeletedMessages">Save deleted messages</string>
+  <string name="DeletedMessagesHistory">Deleted messages</string>
+  <string name="DeletedMessagesHistoryEmpty">No deleted messages have been saved yet.</string>
+  <string name="DeletedMessageNoText">No text</string>
+  <string name="DeletedMessageAttachment">Attachment</string>
+  <string name="DeletedMessageAttachmentMissing">Attachment is no longer available</string>
   <string name="SaveMessagesHistory">Save edits history</string>
   <string name="MessageSavingBtn">Message Saving Preferences</string>
   <string name="MessageSavingMediaHeader">Media</string>

@@ -10,6 +10,11 @@
   <string name="UseScheduledMessages">Использовать отложку</string>
   <string name="SpyEssentialsHeader">Режим шпиона</string>
   <string name="SaveDeletedMessages">Сохранять удалённые сообщения</string>
+  <string name="DeletedMessagesHistory">Удалённые сообщения</string>
+  <string name="DeletedMessagesHistoryEmpty">Сохранённых удалённых сообщений пока нет.</string>
+  <string name="DeletedMessageNoText">Без текста</string>
+  <string name="DeletedMessageAttachment">Вложение</string>
+  <string name="DeletedMessageAttachmentMissing">Вложение больше недоступно</string>
   <string name="SaveMessagesHistory">Сохранять историю правок</string>
   <string name="MessageSavingBtn">Настройки сохранения сообщений</string>
   <string name="MessageSavingMediaHeader">Файлы</string>

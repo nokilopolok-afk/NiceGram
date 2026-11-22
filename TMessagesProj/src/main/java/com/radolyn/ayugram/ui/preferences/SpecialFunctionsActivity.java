@@ -19,6 +19,7 @@ import com.radolyn.ayugram.AyuConfig;
 import com.radolyn.ayugram.AyuConstants;
 import com.radolyn.ayugram.messages.AyuMessagesController;
 import com.radolyn.ayugram.sync.AyuSyncState;
+import com.radolyn.ayugram.ui.DeletedMessagesHistoryActivity;
 import com.radolyn.ayugram.utils.AyuState;
 import org.jetbrains.annotations.NotNull;
 import org.telegram.messenger.*;
@@ -44,6 +45,7 @@ public class SpecialFunctionsActivity extends BasePreferencesActivity implements
 
     private int spyHeaderRow;
     private int saveDeletedMessagesRow;
+    private int deletedMessagesHistoryRow;
     private int saveMessagesHistoryRow;
     private int spyDivider1Row;
     private int messageSavingBtnRow;
@@ -90,6 +92,7 @@ public class SpecialFunctionsActivity extends BasePreferencesActivity implements
 
         spyHeaderRow = newRow();
         saveDeletedMessagesRow = newRow();
+        deletedMessagesHistoryRow = newRow();
         saveMessagesHistoryRow = newRow();
         spyDivider1Row = newRow();
         messageSavingBtnRow = newRow();
@@ -228,6 +231,8 @@ public class SpecialFunctionsActivity extends BasePreferencesActivity implements
         } else if (position == saveDeletedMessagesRow) {
             AyuConfig.editor.putBoolean("saveDeletedMessages", AyuConfig.saveDeletedMessages ^= true).apply();
             ((TextCheckCell) view).setChecked(AyuConfig.saveDeletedMessages);
+        } else if (position == deletedMessagesHistoryRow) {
+            presentFragment(new DeletedMessagesHistoryActivity());
         } else if (position == saveMessagesHistoryRow) {
             AyuConfig.editor.putBoolean("saveMessagesHistory", AyuConfig.saveMessagesHistory ^= true).apply();
             ((TextCheckCell) view).setChecked(AyuConfig.saveMessagesHistory);
@@ -311,6 +316,8 @@ public class SpecialFunctionsActivity extends BasePreferencesActivity implements
                     textCell.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
                     if (position == messageSavingBtnRow) {
                         textCell.setText(LocaleController.getString(R.string.MessageSavingBtn), false);
+                    } else if (position == deletedMessagesHistoryRow) {
+                        textCell.setText(LocaleController.getString(R.string.DeletedMessagesHistory), true);
                     } else if (position == ayuSyncStatusBtnRow) {
                         var status = AyuSyncState.getConnectionStateString();
 
@@ -403,6 +410,7 @@ public class SpecialFunctionsActivity extends BasePreferencesActivity implements
                 return 1;
             } else if (
                     position == messageSavingBtnRow ||
+                            position == deletedMessagesHistoryRow ||
                             position == ayuSyncStatusBtnRow ||
                             position == clearAyuDatabaseBtnRow ||
                             position == eraseLocalDatabaseBtnRow

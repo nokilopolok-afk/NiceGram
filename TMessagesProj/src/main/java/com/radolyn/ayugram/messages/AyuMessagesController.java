@@ -217,6 +217,10 @@ public class AyuMessagesController {
         return deletedMessageDao.getMessagesGrouped(userId, dialogId, groupedId);
     }
 
+    public List<DeletedMessageFull> getRecentDeletedMessages(int limit, int offset) {
+        return deletedMessageDao.getRecentMessages(limit, offset);
+    }
+
     public void delete(long userId, long dialogId, int messageId) {
         var msg = getMessage(userId, dialogId, messageId);
         if (msg == null) {

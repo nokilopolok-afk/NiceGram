@@ -26,6 +26,10 @@ public interface DeletedMessageDao {
     DeletedMessageFull getMessage(long userId, long dialogId, int messageId);
 
     @Transaction
+    @Query("SELECT * FROM deletedmessage ORDER BY entityCreateDate DESC, fakeId DESC LIMIT :limit OFFSET :offset")
+    List<DeletedMessageFull> getRecentMessages(int limit, int offset);
+
+    @Transaction
     @Query("SELECT * FROM deletedmessage WHERE userId = :userId AND dialogId = :dialogId AND topicId = :topicId AND :startId <= messageId AND messageId <= :endId ORDER BY messageId LIMIT :limit")
     List<DeletedMessageFull> getMessages(long userId, long dialogId, long topicId, int startId, int endId, int limit);
 
