@@ -12,20 +12,10 @@ package com.radolyn.ayugram.messages;
 import android.os.Environment;
 import android.text.TextUtils;
 import com.google.android.exoplayer2.util.Log;
-import com.radolyn.ayugram.AyuConfig;
 import com.radolyn.ayugram.AyuConstants;
 import com.radolyn.ayugram.database.AyuData;
 import com.radolyn.ayugram.database.dao.DeletedMessageDao;
-import com.radolyn.ayugram.database.dao.EditedMessageDao;
-import com.radolyn.ayugram.database.entities.DeletedMessage;
 import com.radolyn.ayugram.database.entities.DeletedMessageFull;
-import com.radolyn.ayugram.database.entities.DeletedMessageReaction;
-import com.radolyn.ayugram.database.entities.EditedMessage;
-import com.radolyn.ayugram.proprietary.AyuMessageUtils;
-import org.telegram.messenger.AndroidUtilities;
-import org.telegram.messenger.FileLog;
-import org.telegram.messenger.NotificationCenter;
-import org.telegram.tgnet.TLRPC;
 
 import java.io.File;
 import java.io.IOException;
@@ -39,13 +29,11 @@ public class AyuMessagesController {
             attachmentsSubfolder
     );
     private static AyuMessagesController instance;
-    private final EditedMessageDao editedMessageDao;
     private final DeletedMessageDao deletedMessageDao;
 
     private AyuMessagesController() {
         initializeAttachmentsFolder();
 
-        editedMessageDao = AyuData.getEditedMessageDao();
         deletedMessageDao = AyuData.getDeletedMessageDao();
     }
 
@@ -65,144 +53,6 @@ public class AyuMessagesController {
             instance = new AyuMessagesController();
         }
         return instance;
-    }
-
-    public void onMessageEdited(AyuSavePreferences prefs, TLRPC.Message newMessage) {
-        try {
-            onMessageEditedInner(prefs, newMessage, false);
-        } catch (Exception e) {
-            Log.e("NiceGram", "error onMessageEdited", e);
-            FileLog.e("onMessageEdited", e);
-        }
-    }
-
-    public void onMessageEditedForce(AyuSavePreferences prefs) {
-        try {
-            onMessageEditedInner(prefs, prefs.getMessage(), true);
-        } catch (Exception e) {
-            Log.e("NiceGram", "error onMessageEditedForce", e);
-            FileLog.e("onMessageEditedForce", e);
-        }
-    }
-
-    private void onMessageEditedInner(AyuSavePreferences prefs, TLRPC.Message newMessage, boolean force) {
-        if (!AyuConfig.saveEditedMessageFor(prefs.getAccountId(), prefs.getDialogId())) {
-            return;
-        }
-
-        var oldMessage = prefs.getMessage();
-
-        boolean sameMedia = oldMessage.media == newMessage.media ||
-                (oldMessage.media != null && newMessage.media != null && oldMessage.media.getClass() == newMessage.media.getClass());
-        if (oldMessage.media instanceof TLRPC.TL_messageMediaPhoto && newMessage.media instanceof TLRPC.TL_messageMediaPhoto && oldMessage.media.photo != null && newMessage.media.photo != null) {
-            sameMedia = oldMessage.media.photo.id == newMessage.media.photo.id;
-        } else if (oldMessage.media instanceof TLRPC.TL_messageMediaDocument && newMessage.media instanceof TLRPC.TL_messageMediaDocument && oldMessage.media.document != null && newMessage.media.document != null) {
-            sameMedia = oldMessage.media.document.id == newMessage.media.document.id;
-        }
-
-        if (force) {
-            sameMedia = false;
-        }
-
-        if (sameMedia && TextUtils.equals(oldMessage.message, newMessage.message)) {
-            return;
-        }
-
-        var revision = new EditedMessage();
-        AyuMessageUtils.map(prefs, revision);
-        AyuMessageUtils.mapMedia(prefs, revision, !sameMedia);
-
-        if (!sameMedia && !TextUtils.isEmpty(revision.mediaPath)) {
-            var lastRevision = editedMessageDao.getLastRevision(prefs.getUserId(), prefs.getDialogId(), prefs.getMessageId());
-
-            if (lastRevision != null && !TextUtils.equals(revision.mediaPath, lastRevision.mediaPath) && lastRevision.mediaPath != null && !lastRevision.mediaPath.contains(attachmentsSubfolder)) {
-                // update previous revisions to reflect media change
-                // like, there's no previous file, so replace it with one we copied before...
-                editedMessageDao.updateAttachmentForRevisionsBetweenDates(prefs.getUserId(), prefs.getDialogId(), prefs.getMessageId(), lastRevision.mediaPath, revision.mediaPath);
-            }
-        }
-
-        editedMessageDao.insert(revision);
-
-        AndroidUtilities.runOnUIThread(() -> {
-            NotificationCenter.getInstance(prefs.getAccountId()).postNotificationName(AyuConstants.MESSAGE_EDITED_NOTIFICATION, prefs.getDialogId(), prefs.getMessageId());
-        });
-    }
-
-    public void onMessageDeleted(AyuSavePreferences prefs) {
-        if (prefs.getMessage() == null) {
-            Log.w("NiceGram", "null msg ?");
-            return;
-        }
-
-        try {
-            onMessageDeletedInner(prefs);
-        } catch (Exception e) {
-            Log.e("NiceGram", "error onMessageDeleted", e);
-            FileLog.e("onMessageDeleted", e);
-        }
-    }
-
-    private void onMessageDeletedInner(AyuSavePreferences prefs) {
-        if (!AyuConfig.saveDeletedMessageFor(prefs.getAccountId(), prefs.getDialogId())) {
-            return;
-        }
-
-        if (deletedMessageDao.exists(prefs.getUserId(), prefs.getDialogId(), prefs.getTopicId(), prefs.getMessageId())) {
-            return;
-        }
-
-        var deletedMessage = new DeletedMessage();
-        deletedMessage.userId = prefs.getUserId();
-        deletedMessage.dialogId = prefs.getDialogId();
-        deletedMessage.messageId = prefs.getMessageId();
-        deletedMessage.entityCreateDate = prefs.getRequestCatchTime();
-
-        var msg = prefs.getMessage();
-
-        Log.d("NiceGram", "saving message " + prefs.getMessageId() + " for " + prefs.getDialogId() + " with topic " + prefs.getTopicId());
-
-        AyuMessageUtils.map(prefs, deletedMessage);
-        AyuMessageUtils.mapMedia(prefs, deletedMessage, true);
-
-        var fakeMsgId = deletedMessageDao.insert(deletedMessage);
-
-        if (msg != null && msg.reactions != null && AyuConfig.saveReactions) {
-            processDeletedReactions(fakeMsgId, msg.reactions);
-        }
-    }
-
-    private void processDeletedReactions(long fakeMessageId, TLRPC.TL_messageReactions reactions) {
-        for (var reaction : reactions.results) {
-            if (reaction.reaction instanceof TLRPC.TL_reactionEmpty) {
-                continue;
-            }
-
-            var deletedReaction = new DeletedMessageReaction();
-            deletedReaction.deletedMessageId = fakeMessageId;
-            deletedReaction.count = reaction.count;
-            deletedReaction.selfSelected = reaction.chosen;
-
-            if (reaction.reaction instanceof TLRPC.TL_reactionEmoji) {
-                deletedReaction.emoticon = ((TLRPC.TL_reactionEmoji) reaction.reaction).emoticon;
-            } else if (reaction.reaction instanceof TLRPC.TL_reactionCustomEmoji) {
-                deletedReaction.documentId = ((TLRPC.TL_reactionCustomEmoji) reaction.reaction).document_id;
-                deletedReaction.isCustom = true;
-            } else {
-                Log.e("NiceGram", "fake news emoji");
-                continue;
-            }
-
-            deletedMessageDao.insertReaction(deletedReaction);
-        }
-    }
-
-    public boolean hasAnyRevisions(long userId, long dialogId, int messageId) {
-        return editedMessageDao.hasAnyRevisions(userId, dialogId, messageId);
-    }
-
-    public List<EditedMessage> getRevisions(long userId, long dialogId, int messageId) {
-        return editedMessageDao.getAllRevisions(userId, dialogId, messageId);
     }
 
     public DeletedMessageFull getMessage(long userId, long dialogId, int messageId) {

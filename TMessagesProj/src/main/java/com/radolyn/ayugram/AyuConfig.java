@@ -79,8 +79,8 @@ public class AyuConfig {
             useScheduledMessages = preferences.getBoolean("useScheduledMessages", false);
 
             // ~ Message edits & deletion history
-            saveDeletedMessages = preferences.getBoolean("saveDeletedMessages", true);
-            saveMessagesHistory = preferences.getBoolean("saveMessagesHistory", true);
+            saveDeletedMessages = false;
+            saveMessagesHistory = false;
 
             // ~ Message saving preferences
             saveMedia = preferences.getBoolean("saveMedia", true);

@@ -44,9 +44,7 @@ public class SpecialFunctionsActivity extends BasePreferencesActivity implements
     private int ghostDividerRow;
 
     private int spyHeaderRow;
-    private int saveDeletedMessagesRow;
     private int deletedMessagesHistoryRow;
-    private int saveMessagesHistoryRow;
     private int spyDivider1Row;
     private int messageSavingBtnRow;
     private int spyDivider2Row;
@@ -91,9 +89,7 @@ public class SpecialFunctionsActivity extends BasePreferencesActivity implements
         ghostDividerRow = newRow();
 
         spyHeaderRow = newRow();
-        saveDeletedMessagesRow = newRow();
         deletedMessagesHistoryRow = newRow();
-        saveMessagesHistoryRow = newRow();
         spyDivider1Row = newRow();
         messageSavingBtnRow = newRow();
         spyDivider2Row = newRow();
@@ -118,9 +114,6 @@ public class SpecialFunctionsActivity extends BasePreferencesActivity implements
     @Override
     public boolean onFragmentCreate() {
         super.onFragmentCreate();
-        // todo: register `MESSAGES_DELETED_NOTIFICATION` on all notification centers, not only on the current account
-
-        NotificationCenter.getInstance(UserConfig.selectedAccount).addObserver(this, AyuConstants.MESSAGES_DELETED_NOTIFICATION);
         NotificationCenter.getGlobalInstance().addObserver(this, AyuConstants.AYUSYNC_STATE_CHANGED);
 
         return true;
@@ -128,12 +121,7 @@ public class SpecialFunctionsActivity extends BasePreferencesActivity implements
 
     @Override
     public void didReceivedNotification(int id, int account, Object... args) {
-        if (id == AyuConstants.MESSAGES_DELETED_NOTIFICATION) {
-            // recalculate database size
-            if (listAdapter != null) {
-                listAdapter.notifyItemChanged(clearAyuDatabaseBtnRow);
-            }
-        } else if (id == AyuConstants.AYUSYNC_STATE_CHANGED) {
+        if (id == AyuConstants.AYUSYNC_STATE_CHANGED) {
             if (listAdapter != null) {
                 listAdapter.notifyItemChanged(ayuSyncStatusBtnRow);
             }
@@ -144,7 +132,6 @@ public class SpecialFunctionsActivity extends BasePreferencesActivity implements
     public void onFragmentDestroy() {
         super.onFragmentDestroy();
 
-        NotificationCenter.getInstance(UserConfig.selectedAccount).removeObserver(this, AyuConstants.MESSAGES_DELETED_NOTIFICATION);
         NotificationCenter.getGlobalInstance().removeObserver(this, AyuConstants.AYUSYNC_STATE_CHANGED);
     }
 
@@ -228,14 +215,8 @@ public class SpecialFunctionsActivity extends BasePreferencesActivity implements
 
                 listAdapter.notifyItemChanged(markReadAfterSendRow, false);
             }
-        } else if (position == saveDeletedMessagesRow) {
-            AyuConfig.editor.putBoolean("saveDeletedMessages", AyuConfig.saveDeletedMessages ^= true).apply();
-            ((TextCheckCell) view).setChecked(AyuConfig.saveDeletedMessages);
         } else if (position == deletedMessagesHistoryRow) {
             presentFragment(new DeletedMessagesHistoryActivity());
-        } else if (position == saveMessagesHistoryRow) {
-            AyuConfig.editor.putBoolean("saveMessagesHistory", AyuConfig.saveMessagesHistory ^= true).apply();
-            ((TextCheckCell) view).setChecked(AyuConfig.saveMessagesHistory);
         } else if (position == messageSavingBtnRow) {
             presentFragment(new MessageSavingPreferencesActivity());
         } else if (position == keepAliveServiceRow) {
@@ -354,10 +335,6 @@ public class SpecialFunctionsActivity extends BasePreferencesActivity implements
                         textCheckCell.setTextAndCheck(LocaleController.getString(R.string.MarkReadAfterSend), AyuConfig.markReadAfterSend, true);
                     } else if (position == useScheduledMessagesRow) {
                         textCheckCell.setTextAndCheck(LocaleController.getString(R.string.UseScheduledMessages), AyuConfig.useScheduledMessages, false);
-                    } else if (position == saveDeletedMessagesRow) {
-                        textCheckCell.setTextAndCheck(LocaleController.getString(R.string.SaveDeletedMessages), AyuConfig.saveDeletedMessages, true);
-                    } else if (position == saveMessagesHistoryRow) {
-                        textCheckCell.setTextAndCheck(LocaleController.getString(R.string.SaveMessagesHistory), AyuConfig.saveMessagesHistory, false);
                     } else if (position == keepAliveServiceRow) {
                         textCheckCell.setTextAndCheck(LocaleController.getString(R.string.KeepAliveService), AyuConfig.keepAliveService, true);
                     } else if (position == disableAdsRow) {

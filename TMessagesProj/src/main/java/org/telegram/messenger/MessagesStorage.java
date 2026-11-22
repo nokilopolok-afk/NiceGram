@@ -23,9 +23,7 @@ import androidx.annotation.UiThread;
 import androidx.collection.LongSparseArray;
 
 import com.radolyn.ayugram.AyuConfig;
-import com.radolyn.ayugram.messages.AyuMessagesController;
 
-import com.radolyn.ayugram.messages.AyuSavePreferences;
 import org.telegram.PhoneFormat.PhoneFormat;
 import org.telegram.SQLite.SQLiteCursor;
 import org.telegram.SQLite.SQLiteDatabase;
@@ -4258,14 +4256,6 @@ public class MessagesStorage extends BaseController {
                             if (!addFilesToDelete(message, filesToDelete, idsToDelete, namesToDelete, true)) {
                                 continue;
                             } else {
-                                // --- NiceGram hook
-                                if (AyuConfig.saveMessagesHistory) {
-                                    var prefs = new AyuSavePreferences(message, currentAccount);
-                                    prefs.setDialogId(dialogId);
-                                    AyuMessagesController.getInstance().onMessageEditedForce(prefs);
-                                }
-                                // --- NiceGram hook
-
                                 if (message.media.document != null) {
                                     message.media.document = new TLRPC.TL_documentEmpty();
                                 } else if (message.media.photo != null) {
@@ -13539,11 +13529,6 @@ public class MessagesStorage extends BaseController {
                                         sameMedia = oldMessage.media.photo.id == message.media.photo.id;
                                     } else if (oldMessage.media instanceof TLRPC.TL_messageMediaDocument && message.media instanceof TLRPC.TL_messageMediaDocument && oldMessage.media.document != null && message.media.document != null) {
                                         sameMedia = oldMessage.media.document.id == message.media.document.id;
-                                    }
-                                    if (message.from_id != null && (!oldMessage.message.equals(message.message) || !sameMedia)) {
-                                        var prefs = new AyuSavePreferences(oldMessage, currentAccount);
-                                        prefs.setDialogId(dialogId);
-                                        AyuMessagesController.getInstance().onMessageEdited(prefs, message);
                                     }
                                     if (!sameMedia) {
                                         addFilesToDelete(oldMessage, filesToDelete, idsToDelete, namesToDelete, false);

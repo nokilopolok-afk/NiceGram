@@ -57,6 +57,8 @@ Push to `main` or `master`, or run **Build NiceGram APK and AAB** manually from 
 - `NiceGram-apk`: release universal APK
 - `NiceGram-aab`: Android App Bundle
 
+Message edit history, deleted-message capture, and reinsertion into chat history are temporarily disabled because the upstream proprietary submodule is unavailable. The deleted-message history screen can still display data already present in the local database.
+
 ### Android Studio
 
 1. Place `google-services.json` in `TMessagesProj/`.

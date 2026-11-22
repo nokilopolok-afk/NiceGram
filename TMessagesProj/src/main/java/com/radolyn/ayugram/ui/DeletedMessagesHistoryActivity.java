@@ -27,7 +27,6 @@ import com.radolyn.ayugram.messages.AyuMessagesController;
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MessagesController;
-import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
 import org.telegram.messenger.UserObject;
 import org.telegram.messenger.UserConfig;
@@ -44,7 +43,7 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
-public class DeletedMessagesHistoryActivity extends BaseFragment implements NotificationCenter.NotificationCenterDelegate {
+public class DeletedMessagesHistoryActivity extends BaseFragment {
     private static final int PAGE_SIZE = 50;
 
     private List<DeletedMessageFull> messages = new ArrayList<>();
@@ -212,31 +211,6 @@ public class DeletedMessagesHistoryActivity extends BaseFragment implements Noti
     @Override
     public ArrayList<ThemeDescription> getThemeDescriptions() {
         return new ArrayList<>();
-    }
-
-    @Override
-    public boolean onFragmentCreate() {
-        if (!super.onFragmentCreate()) {
-            return false;
-        }
-        NotificationCenter.getInstance(UserConfig.selectedAccount).addObserver(this, AyuConstants.MESSAGES_DELETED_NOTIFICATION);
-        return true;
-    }
-
-    @Override
-    public void didReceivedNotification(int id, int account, Object... args) {
-        if (id == AyuConstants.MESSAGES_DELETED_NOTIFICATION) {
-            loadMessages(true);
-            if (listView != null) {
-                listView.scrollToPosition(0);
-            }
-        }
-    }
-
-    @Override
-    public void onFragmentDestroy() {
-        NotificationCenter.getInstance(UserConfig.selectedAccount).removeObserver(this, AyuConstants.MESSAGES_DELETED_NOTIFICATION);
-        super.onFragmentDestroy();
     }
 
     private class ListAdapter extends RecyclerListView.SelectionAdapter {

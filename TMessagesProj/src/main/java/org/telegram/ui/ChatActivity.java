@@ -116,12 +116,9 @@ import com.radolyn.ayugram.AyuConfig;
 import com.radolyn.ayugram.AyuConstants;
 import com.radolyn.ayugram.AyuFilter;
 import com.radolyn.ayugram.AyuUtils;
-import com.radolyn.ayugram.messages.AyuMessagesController;
-import com.radolyn.ayugram.proprietary.AyuHistoryHook;
 import com.radolyn.ayugram.ui.DummyView;
 import com.radolyn.ayugram.utils.AyuState;
 import com.radolyn.ayugram.utils.AyuGhostUtils;
-import com.radolyn.ayugram.ui.AyuMessageHistory;
 
 import org.telegram.PhoneFormat.PhoneFormat;
 import org.telegram.messenger.AccountInstance;
@@ -987,8 +984,6 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
     private final static int OPTION_HISTORY = 205;
 
     private final static int[] allowedNotificationsDuringChatListAnimations = new int[]{
-            AyuConstants.MESSAGES_DELETED_NOTIFICATION,
-
             NotificationCenter.messagesRead,
             NotificationCenter.threadMessagesRead,
             NotificationCenter.commentsRead,
@@ -2406,8 +2401,6 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
         getNotificationCenter().addObserver(this, NotificationCenter.messageTranslated);
         getNotificationCenter().addObserver(this, NotificationCenter.messageTranslating);
 
-        getNotificationCenter().addObserver(this, AyuConstants.MESSAGES_DELETED_NOTIFICATION);
-
         super.onFragmentCreate();
 
         if (chatMode == MODE_PINNED) {
@@ -2762,8 +2755,6 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
         getNotificationCenter().removeObserver(this, NotificationCenter.dialogIsTranslatable);
         getNotificationCenter().removeObserver(this, NotificationCenter.messageTranslated);
         getNotificationCenter().removeObserver(this, NotificationCenter.messageTranslating);
-
-        getNotificationCenter().removeObserver(this, AyuConstants.MESSAGES_DELETED_NOTIFICATION);
 
         if (currentEncryptedChat != null) {
             getNotificationCenter().removeObserver(this, NotificationCenter.didVerifyMessagesStickers);
@@ -15792,120 +15783,6 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
                 }
             }
 
-            // --- NiceGram hook main
-            var dialogId = getDialogId();
-            var topicId = getTopicId();
-
-            int minVal = isSecretChat() ? Integer.MAX_VALUE : 0;
-            int maxVal = isSecretChat() ? Integer.MIN_VALUE : Integer.MAX_VALUE;
-
-            int startId = minVal; // top message (startId < endId)
-            // ...deleted messages
-            int endId = minVal; // bottom message
-
-            var limit = 500;
-
-            var msgIds = AyuHistoryHook.getMinAndMaxIds(messArr);
-
-            if (!DialogObject.isEncryptedDialog(dialogId)) {
-                if (!messArr.isEmpty()) {
-                    int msg1 = msgIds.first; // smaller
-                    int msg2 = msgIds.second; // bigger
-
-                    startId = Math.min(msg1, msg2);
-                    endId = Math.max(msg1, msg2);
-
-                    var dialog = getMessagesController().getDialog(dialogId);
-
-                    TLRPC.TL_forumTopic topic = null;
-                    if (isTopic) {
-                        topic = getMessagesController().getTopicsController().findTopic(getCurrentChatInfo().id, getTopicId());
-                    }
-
-                    // todo: check if these's any messages between current loaded and newly loaded
-                    // like, we know their ids, so why not
-                    var minMaxRes = getMessagesStorage().getMinAndMaxForDialog(dialogId);
-
-                    // allows loading messages that are under bottom messages
-                    if (dialog != null && (dialog.top_message == endId || (minMaxRes.second == endId && dialog.top_message <= minMaxRes.second)) || topic != null && topic.top_message == endId) {
-                        // startId is the smallest in the current batch
-                        endId = maxVal;
-                    } else if (messArr.size() == 1 && messArr.get(0).messageOwner instanceof TLRPC.TL_messageService) {
-                        startId = minVal;
-                        endId = AyuUtils.getMinRealId(messages);
-                    }
-                    // allows loading messages that are uppermore than the dialog
-                    else if (messArr.size() < count && !isCache && (load_type == 2 || load_type == 1) && !messArr.isEmpty()) {
-                        startId = minVal;
-                        endId = Math.min(msg1, msg2);
-                    }
-                } else {
-                    if (!messages.isEmpty()) { // for loading uppermore
-                        startId = minVal;
-                        endId = AyuUtils.getMinRealId(messages);
-                    }
-
-                    if (isCache) {
-                        startId = minVal;
-                        endId = minVal;
-                    }
-                }
-            } else {
-                // works for secret chats only, because they're all cached
-                var secretRes = getMessagesStorage().getMinAndMaxForDialog(dialogId);
-                int secretStartId = secretRes.second; // bigger
-                int secretEndId = secretRes.first; // smaller
-
-                int msg1 = msgIds.second; // bigger
-                int msg2 = msgIds.first; // smaller
-
-                if (Math.abs(secretStartId - secretEndId) == 1 || (secretStartId == msg1 && secretEndId == msg2)) { // empty dialog, so load as much as we can
-                    startId = minVal;
-                    endId = maxVal;
-                    Log.d("NiceGram", "case 1");
-                } else if (secretStartId == msg1) { // loaded up to top
-                    startId = minVal;
-                    endId = msg2;
-                    Log.d("NiceGram", "case 2");
-                } else if (secretEndId == msg2) { // loaded up to bottom
-                    startId = msg1;
-                    endId = maxVal;
-                    Log.d("NiceGram", "case 3");
-                } else { // just between some messages
-                    startId = msg1;
-                    endId = msg2;
-                    Log.d("NiceGram", "case 4");
-                }
-
-                Log.d("NiceGram", "omfg " + secretStartId + " " + secretEndId);
-                Log.d("NiceGram", "omfg2 " + msg1 + " " + msg2);
-            }
-
-            if (startId > endId) {
-                var t = startId;
-                startId = endId;
-                endId = t;
-            }
-
-            Log.d("NiceGram",
-                    "messArr: " + messArr.size()
-                    + " , startId: " + startId
-                    + " , endId: " + endId
-                    + " , count: " + count
-                    + " , load_type: " + load_type
-                    + " , isCache: " + isCache
-                    + " , isEnd: " + isEnd
-                    + ", endReached[0]: " + endReached[0]
-            );
-            if (!isInScheduleMode() && chatMode != MODE_PINNED && (startId != minVal || endId != minVal)) {
-                var needToReset = messArr.size() == count;
-                AyuHistoryHook.doHook(currentAccount, messArr, messagesDict, startId, endId, dialogId, limit, topicId, isSecretChat());
-                if (needToReset) {
-                    count = messArr.size();
-                }
-            }
-            // --- NiceGram hook
-
             for (int a = 0; a < messArr.size(); a++) {
                 MessageObject obj = messArr.get(a);
                 if (obj.replyMessageObject != null) {
@@ -18625,33 +18502,6 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
             updateTranslateItemVisibility();
         }
 
-        // --- NiceGram hook
-        if (id == AyuConstants.MESSAGES_DELETED_NOTIFICATION) {
-            long dialogId = (Long) args[0];
-            if (getDialogId() != dialogId && (ChatObject.isChannel(currentChat) || dialogId != 0)) {
-                return;
-            }
-            if (chatAdapter == null) {
-                return;
-            }
-            ArrayList<Integer> messageIds = (ArrayList<Integer>) args[1];
-            for (int a = 0, N = messageIds.size(); a < N; a++) {
-                int mid = messageIds.get(a);
-                MessageObject currentMessage = messagesDict[0].get(mid);
-                if (currentMessage != null) {
-                    currentMessage.messageOwner.ayuDeleted = true;
-                    chatAdapter.updateRowWithMessageObject(currentMessage, false);
-                }
-            }
-
-            if (AyuState.getHideSelection()) {
-                // thanks to the som fucking tg bug & poor design,
-                // I can't deselect messages rn
-                // neither they can deselect themselves
-                startMessageUnselect();
-            }
-        }
-        // --- NiceGram hook
     }
 
     private int getScrollingOffsetForView(View v) {
@@ -24235,22 +24085,6 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
             }
 
             /// --- NiceGram menu
-            if (message != null
-                    && message.messageOwner.from_id != null
-                    && message.messageOwner.from_id.user_id != getAccountInstance().getUserConfig().getClientUserId()
-                    && AyuMessagesController.getInstance().hasAnyRevisions(getAccountInstance().getUserConfig().getClientUserId(), dialog_id, message.messageOwner.id)
-            ) {
-                var idx = options.size() - 1;
-
-                if (options.contains(OPTION_DETAILS)) {
-                    idx = options.indexOf(OPTION_DETAILS);
-                }
-
-                items.add(idx, LocaleController.getString("EditsHistoryMenuText", R.string.EditsHistoryMenuText));
-                options.add(idx, AyuConstants.OPTION_HISTORY);
-                icons.add(idx, R.drawable.msg_log);
-            }
-
             if (message != null && message.messageOwner.ttl > 0 && !isAyuDeleted) {
                 var idx = options.size() - 1;
 
@@ -25863,9 +25697,6 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
         }
         boolean preserveDim = false;
         switch (option) {
-            case AyuConstants.OPTION_HISTORY:
-                presentFragment(new AyuMessageHistory(selectedObject));
-                break;
             case AyuConstants.OPTION_TTL:
                 AyuState.setAllowReadPacket(true, 1);
                 sendSecretMessageRead(selectedObject, true);
