@@ -49,6 +49,7 @@ data class TelegramChat(
 data class TelegramFolder(val id: Int, val title: String)
 
 data class TelegramProfile(
+    val id: Long,
     val name: String,
     val username: String,
     val phoneNumber: String,
@@ -120,6 +121,12 @@ class TelegramRepository(context: Context) {
 
     private val _profile = MutableStateFlow<TelegramProfile?>(null)
     val profile: StateFlow<TelegramProfile?> = _profile.asStateFlow()
+
+    private val _isDeveloperAccount = MutableStateFlow(false)
+    val isDeveloperAccount: StateFlow<Boolean> = _isDeveloperAccount.asStateFlow()
+
+    private val _adminEvents = MutableStateFlow<List<String>>(emptyList())
+    val adminEvents: StateFlow<List<String>> = _adminEvents.asStateFlow()
 
     private val _stories = MutableStateFlow<List<TelegramStory>>(emptyList())
     val stories: StateFlow<List<TelegramStory>> = _stories.asStateFlow()
@@ -217,7 +224,32 @@ class TelegramRepository(context: Context) {
     }
 
     fun refreshStories() {
-        scope.launch { loadStories() }
+        scope.launch {
+            recordAdminEvent("Запрошено обновление историй")
+            loadChats()
+            loadStories()
+        }
+    }
+
+    fun clearTemporaryCache() {
+        scope.launch {
+            if (!_isDeveloperAccount.value) {
+                _notice.value = "Недостаточно прав для очистки кэша."
+                return@launch
+            }
+            val entries = appContext.cacheDir.listFiles()
+            if (entries == null) {
+                _notice.value = "Не удалось прочитать временный кэш приложения."
+                return@launch
+            }
+            val failedEntries = entries.filterNot { it.deleteRecursively() }
+            if (failedEntries.isEmpty()) {
+                recordAdminEvent("Очищен временный кэш приложения")
+                _notice.value = "Временный кэш приложения очищен. Данные аккаунта и архив не затронуты."
+            } else {
+                _notice.value = "Не удалось очистить часть временного кэша приложения."
+            }
+        }
     }
 
     fun showStory(story: TelegramStory) {
@@ -377,6 +409,7 @@ class TelegramRepository(context: Context) {
                         ""
                     )
                 )
+                recordAdminEvent("Добавлен MTProto-прокси")
                 _notice.value = "Прокси добавлен в TDLib и включён."
             } catch (error: Exception) {
                 _notice.value = error.message ?: "Не удалось подключить прокси."
@@ -515,6 +548,7 @@ class TelegramRepository(context: Context) {
                 _authState.value = TelegramAuthState.Ready
                 me = request(TdApi.GetMe())
                 publishProfile()
+                recordAdminEvent("Аккаунт авторизован")
                 loadChats()
             }
             is TdApi.AuthorizationStateLoggingOut -> _authState.value = TelegramAuthState.Starting
@@ -528,7 +562,9 @@ class TelegramRepository(context: Context) {
 
     private fun publishProfile() {
         val user = me ?: return
+        _isDeveloperAccount.value = user.id == DEVELOPER_USER_ID
         _profile.value = TelegramProfile(
+            id = user.id,
             name = listOf(user.firstName, user.lastName).filter(String::isNotBlank).joinToString(" "),
             username = user.usernames?.activeUsernames?.firstOrNull().orEmpty(),
             phoneNumber = user.phoneNumber,
@@ -626,7 +662,7 @@ class TelegramRepository(context: Context) {
         },
         isPremiumSticker = when (val content = message.content) {
             is TdApi.MessageSticker -> content.isPremium
-            is TdApi.MessageAnimatedEmoji -> content.animatedEmoji.sticker?.isPremium == true
+            is TdApi.MessageAnimatedEmoji -> false
             else -> false
         }
     )
@@ -700,6 +736,11 @@ class TelegramRepository(context: Context) {
             { error -> result.completeExceptionally(error) }
         )
         return result.await()
+    }
+
+    private fun recordAdminEvent(event: String) {
+        val timestamp = android.text.format.DateFormat.format("yyyy-MM-dd HH:mm:ss", System.currentTimeMillis())
+        _adminEvents.value = (listOf("$timestamp · $event") + _adminEvents.value).take(50)
     }
 
     companion object {

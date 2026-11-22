@@ -1,6 +1,8 @@
 # NiceGram Next
 
-This is an isolated Kotlin/Jetpack Compose app, so the existing NiceGram client remains untouched. It provides an animated violet-and-red interface for TDLib authorization, live chats, Telegram chat folders, account profile, accessible active stories, stickers, a local deleted-message archive, and settings.
+This is an isolated Kotlin/Jetpack Compose app, so the existing NiceGram client remains untouched. It provides an animated violet-and-red interface for TDLib authorization, live chats, Telegram chat folders, account profile, accessible active stories, stickers, a local deleted-message archive, and settings. The settings screen links to the profile, shows connection state, and exposes the optional local archive and MTProto proxy setup.
+
+The developer panel is shown only when the signed-in Telegram user ID is `6226314827`; a username is not used as an identity check. It displays local client statistics and non-sensitive in-memory diagnostic events, can refresh chats/stories, and can clear only the app's temporary cache after confirmation. It does not grant server-side privileges or alter Telegram account data.
 
 ## Build
 

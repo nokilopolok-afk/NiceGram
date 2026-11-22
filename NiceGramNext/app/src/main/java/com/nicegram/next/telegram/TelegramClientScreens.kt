@@ -54,6 +54,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.BottomAppBar
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -68,6 +69,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -526,7 +528,9 @@ private fun LiveHome(
                 ClientTab.Chats -> LiveChats(repository, onOpenChat, onOpenStory)
                 ClientTab.Archive -> ArchiveScreen(repository)
                 ClientTab.Profile -> ProfileScreen(repository, onOpenStory)
-                ClientTab.Settings -> SettingsScreen(repository)
+                ClientTab.Settings -> SettingsScreen(repository) {
+                    onSelectTab(ClientTab.Profile)
+                }
             }
         }
     }
@@ -1045,8 +1049,9 @@ private fun StickerMedia(message: TelegramMessage, repository: TelegramRepositor
             path?.let { BitmapFactory.decodeFile(it)?.asImageBitmap() }
         }
     }
-    if (path?.endsWith(".webm", ignoreCase = true) == true) {
-        LoopingVideo(path, Modifier.size(150.dp))
+    val localPath = path
+    if (localPath?.endsWith(".webm", ignoreCase = true) == true) {
+        LoopingVideo(localPath, Modifier.size(150.dp))
     } else if (bitmap != null) {
         Image(
             bitmap!!,
@@ -1128,10 +1133,29 @@ private fun ArchiveScreen(repository: TelegramRepository) {
 }
 
 @Composable
-private fun SettingsScreen(repository: TelegramRepository) {
+private fun SettingsScreen(repository: TelegramRepository, onOpenProfile: () -> Unit) {
     val archiveEnabled by repository.archiveEnabled.collectAsState()
+    val profile by repository.profile.collectAsState()
+    val isDeveloperAccount by repository.isDeveloperAccount.collectAsState()
+    val connection by repository.connectionState.collectAsState()
     var showProxyForm by remember { mutableStateOf(false) }
+    var showAdminPanel by remember { mutableStateOf(false) }
+    if (showAdminPanel) {
+        AdminPanel(repository, onBack = { showAdminPanel = false })
+        return
+    }
     Column(Modifier.fillMaxSize()) {
+        if (profile != null) {
+            SettingRow(
+                icon = Icons.Default.Person,
+                title = profile!!.name.ifBlank { "Мой профиль" },
+                subtitle = listOfNotNull(
+                    profile!!.username.takeIf(String::isNotBlank)?.let { "@$it" },
+                    profile!!.phoneNumber.takeIf(String::isNotBlank)
+                ).joinToString(" · ").ifBlank { "Открыть профиль и истории" },
+                onClick = onOpenProfile
+            )
+        }
         SettingRow(
             icon = Icons.Default.Archive,
             title = "Локальный архив",
@@ -1141,18 +1165,158 @@ private fun SettingsScreen(repository: TelegramRepository) {
         SettingRow(
             icon = Icons.Default.Shield,
             title = "MTProto-прокси",
-            subtitle = "Добавить прокси в настройки TDLib",
+            subtitle = "Настроить соединение через прокси TDLib",
             onClick = { showProxyForm = !showProxyForm }
         )
         AnimatedVisibility(showProxyForm) {
             ProxyForm(repository)
         }
+        SettingRow(
+            icon = Icons.Default.Settings,
+            title = "Данные и конфиденциальность",
+            subtitle = "Архив остаётся на устройстве и шифруется",
+        )
+        SettingRow(
+            icon = Icons.Default.ChatBubbleOutline,
+            title = "Соединение",
+            subtitle = connection
+        )
+        if (isDeveloperAccount) {
+            SettingRow(
+                icon = Icons.Default.Shield,
+                title = "Панель разработчика",
+                subtitle = "Статус клиента, диагностика и обслуживание",
+                onClick = { showAdminPanel = true }
+            )
+        }
         Text(
-            "Архив хранится локально. Он не восстанавливает сообщения, полученные до включения функции, и не обходит удаление на стороне Telegram.",
+            "NiceGram использует официальный TDLib. Настройки и доступность функций Telegram, включая истории, определяются сервером Telegram.",
             color = ClientMuted,
             fontSize = 11.sp,
             lineHeight = 16.sp,
             modifier = Modifier.padding(horizontal = 22.dp, vertical = 13.dp)
+        )
+    }
+}
+
+@Composable
+private fun AdminPanel(repository: TelegramRepository, onBack: () -> Unit) {
+    val isDeveloperAccount by repository.isDeveloperAccount.collectAsState()
+    val profile by repository.profile.collectAsState()
+    val chats by repository.chats.collectAsState()
+    val stories by repository.stories.collectAsState()
+    val connection by repository.connectionState.collectAsState()
+    val events by repository.adminEvents.collectAsState()
+    var confirmCacheClear by remember { mutableStateOf(false) }
+
+    if (!isDeveloperAccount) {
+        EmptyState("Доступ запрещён", "Панель доступна только аккаунту разработчика.")
+        return
+    }
+
+    LazyColumn(
+        Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        item {
+            Row(
+                Modifier.fillMaxWidth().padding(bottom = 5.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onBack) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад", tint = ClientViolet)
+                }
+                Column {
+                    Text("Панель разработчика", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Локальные инструменты NiceGram", color = ClientMuted, fontSize = 11.sp)
+                }
+            }
+        }
+        item {
+            SettingRow(
+                icon = Icons.Default.Person,
+                title = profile?.name.orEmpty().ifBlank { "Аккаунт разработчика" },
+                subtitle = "ID ${profile?.id ?: "—"} · $connection"
+            )
+        }
+        item {
+            SettingRow(
+                icon = Icons.Default.ChatBubbleOutline,
+                title = "Загруженные чаты",
+                subtitle = chats.size.toString()
+            )
+        }
+        item {
+            SettingRow(
+                icon = Icons.Default.Archive,
+                title = "Доступные истории",
+                subtitle = stories.size.toString()
+            )
+        }
+        item {
+            SettingRow(
+                icon = Icons.Default.Settings,
+                title = "Обновить данные",
+                subtitle = "Повторно запросить список чатов и историй",
+                onClick = repository::refreshStories
+            )
+        }
+        item {
+            SettingRow(
+                icon = Icons.Default.DeleteOutline,
+                title = "Очистить временный кэш",
+                subtitle = "Архив сообщений и данные входа останутся",
+                onClick = { confirmCacheClear = true }
+            )
+        }
+        item {
+            Text(
+                "Диагностические события",
+                color = Color.White,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(start = 4.dp, top = 10.dp, bottom = 2.dp)
+            )
+        }
+        if (events.isEmpty()) {
+            item {
+                Text("Событий пока нет.", color = ClientMuted, fontSize = 12.sp, modifier = Modifier.padding(4.dp))
+            }
+        } else {
+            items(events) { event ->
+                Text(
+                    event,
+                    color = ClientMuted,
+                    fontSize = 11.sp,
+                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                        .background(ClientPanel).padding(horizontal = 12.dp, vertical = 9.dp)
+                )
+            }
+        }
+    }
+
+    if (confirmCacheClear) {
+        AlertDialog(
+            onDismissRequest = { confirmCacheClear = false },
+            title = { Text("Очистить временный кэш?") },
+            text = { Text("Будут удалены только временные файлы NiceGram. Архив сообщений, данные входа и база TDLib не затрагиваются.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmCacheClear = false
+                    repository.clearTemporaryCache()
+                }) {
+                    Text("Очистить", color = ClientRed)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmCacheClear = false }) {
+                    Text("Отмена", color = ClientViolet)
+                }
+            },
+            containerColor = ClientPanel,
+            titleContentColor = Color.White,
+            textContentColor = ClientMuted
         )
     }
 }
