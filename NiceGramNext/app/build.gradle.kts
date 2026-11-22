@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -9,11 +11,10 @@ android {
     namespace = "com.nicegram.next"
     compileSdk = 35
 
-    val localProperties = java.util.Properties().apply {
-        val localPropertiesFile = rootProject.file("local.properties")
-        if (localPropertiesFile.exists()) {
-            localPropertiesFile.inputStream().use(::load)
-        }
+    val localProperties = Properties()
+    val localPropertiesFile = rootProject.file("local.properties")
+    if (localPropertiesFile.exists()) {
+        localPropertiesFile.inputStream().use { localProperties.load(it) }
     }
     val apiId = providers.environmentVariable("NICEGRAM_API_ID")
         .orElse(localProperties.getProperty("NICEGRAM_API_ID", ""))

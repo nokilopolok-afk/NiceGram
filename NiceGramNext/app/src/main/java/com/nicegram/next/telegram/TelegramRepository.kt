@@ -11,9 +11,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import org.drinkless.tdlib.Client
 import org.drinkless.tdlib.TdApi
@@ -69,6 +71,8 @@ class TelegramRepository(context: Context) {
         TelegramArchiveDatabase::class.java,
         "nicegram-archive.db"
     ).build()
+    private val secureStorage = DeviceSecureStorage(appContext)
+    private val updates = Channel<TdApi.Object>(Channel.UNLIMITED)
 
     private val _authState = MutableStateFlow<TelegramAuthState>(TelegramAuthState.Starting)
     val authState: StateFlow<TelegramAuthState> = _authState.asStateFlow()
@@ -102,7 +106,36 @@ class TelegramRepository(context: Context) {
 
     init {
         scope.launch {
-            database.archiveDao().observeDeleted().collect { _deletedMessages.value = it }
+            for (update in updates) {
+                try {
+                    handleUpdate(update)
+                } catch (error: Exception) {
+                    _notice.value = error.message ?: "Не удалось обработать обновление Telegram."
+                    if (_authState.value == TelegramAuthState.Starting) {
+                        _authState.value = TelegramAuthState.Failed(
+                            error.message ?: "Не удалось подготовить безопасную базу Telegram."
+                        )
+                    }
+                }
+            }
+        }
+        scope.launch {
+            database.archiveDao().observeDeleted().collect { entries ->
+                try {
+                    _deletedMessages.value = entries.map { entry ->
+                        ArchivedMessage(
+                            chatId = entry.chatId,
+                            messageId = entry.messageId,
+                            chatTitle = entry.chatTitle,
+                            sender = entry.sender,
+                            text = secureStorage.decrypt(entry.encryptedText),
+                            timestamp = entry.timestamp
+                        )
+                    }
+                } catch (error: Exception) {
+                    _notice.value = error.message ?: "Не удалось расшифровать локальный архив."
+                }
+            }
         }
         if (BuildConfig.TELEGRAM_API_ID <= 0 || BuildConfig.TELEGRAM_API_HASH.isBlank()) {
             _authState.value = TelegramAuthState.MissingCredentials
@@ -256,7 +289,11 @@ class TelegramRepository(context: Context) {
         try {
             Client.execute(TdApi.SetLogVerbosityLevel(1))
             client = Client.create(
-                { update -> scope.launch { handleUpdate(update) } },
+                { update ->
+                    if (updates.trySend(update).isFailure) {
+                        _notice.value = "Не удалось принять обновление Telegram."
+                    }
+                },
                 { error -> _notice.value = "Ошибка TDLib: ${error.message ?: error.javaClass.simpleName}" },
                 { error -> _notice.value = "Ошибка TDLib: ${error.message ?: error.javaClass.simpleName}" }
             )
@@ -331,7 +368,7 @@ class TelegramRepository(context: Context) {
                         false,
                         dataDirectory.absolutePath,
                         filesDirectory.absolutePath,
-                        ByteArray(0),
+                        secureStorage.getOrCreateTelegramDatabaseKey().toByteArray(Charsets.UTF_8),
                         true,
                         true,
                         true,
@@ -345,7 +382,8 @@ class TelegramRepository(context: Context) {
                     )
                 )
             }
-            is TdApi.AuthorizationStateWaitEncryptionKey -> request(TdApi.CheckDatabaseEncryptionKey(""))
+            is TdApi.AuthorizationStateWaitEncryptionKey ->
+                request(TdApi.CheckDatabaseEncryptionKey(secureStorage.getOrCreateTelegramDatabaseKey()))
             is TdApi.AuthorizationStateWaitPhoneNumber -> _authState.value = TelegramAuthState.Phone()
             is TdApi.AuthorizationStateWaitCode -> _authState.value = TelegramAuthState.Code()
             is TdApi.AuthorizationStateWaitPassword -> _authState.value = TelegramAuthState.Password(state.passwordHint)
@@ -422,12 +460,12 @@ class TelegramRepository(context: Context) {
         if (!_archiveEnabled.value) return
         messages.filterNot { it.isOutgoing }.forEach { message ->
             database.archiveDao().save(
-                ArchivedMessage(
+                ArchivedMessageEntity(
                     chatId = message.chatId,
                     messageId = message.id,
                     chatTitle = chatObjects[message.chatId]?.title.orEmpty(),
                     sender = mapMessage(message).sender,
-                    text = messagePreview(message),
+                    encryptedText = secureStorage.encrypt(messagePreview(message)),
                     timestamp = message.date.toLong(),
                     deleted = false
                 )
