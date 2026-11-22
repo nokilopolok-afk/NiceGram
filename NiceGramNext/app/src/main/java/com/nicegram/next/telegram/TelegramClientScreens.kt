@@ -94,6 +94,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -581,7 +582,7 @@ private fun LiveChats(
             )
         }
     }
-    if (stories.isNotEmpty()) StoriesStrip(stories, onOpenStory)
+    if (stories.isNotEmpty()) StoriesStrip(repository, stories, onOpenStory)
     else {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp),
@@ -608,14 +609,18 @@ private fun LiveChats(
             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp)
         ) {
             items(filtered, key = { it.id }) { chat ->
-                LiveChatRow(chat, onClick = { onOpenChat(chat) })
+                LiveChatRow(chat, repository, onClick = { onOpenChat(chat) })
             }
         }
     }
 }
 
 @Composable
-private fun StoriesStrip(stories: List<TelegramStory>, onOpenStory: (TelegramStory) -> Unit) {
+private fun StoriesStrip(
+    repository: TelegramRepository,
+    stories: List<TelegramStory>,
+    onOpenStory: (TelegramStory) -> Unit
+) {
     Column(Modifier.fillMaxWidth().padding(top = 5.dp, bottom = 7.dp)) {
         Text("Истории", color = Color.White, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 20.dp, bottom = 7.dp))
         LazyRow(
@@ -633,7 +638,12 @@ private fun StoriesStrip(stories: List<TelegramStory>, onOpenStory: (TelegramSto
                             .padding(3.dp).clip(CircleShape).background(ClientInk),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(story.chatTitle.firstOrNull()?.uppercase() ?: "T", color = Color.White, fontSize = 21.sp)
+                        TelegramAvatar(
+                            repository = repository,
+                            fileId = story.avatarFileId,
+                            label = story.chatTitle,
+                            size = 52.dp
+                        )
                     }
                     Text(
                         story.chatTitle,
@@ -663,13 +673,12 @@ private fun ProfileScreen(repository: TelegramRepository, onOpenStory: (Telegram
         Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 18.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Box(
-            Modifier.size(104.dp).clip(CircleShape)
-                .background(Brush.linearGradient(listOf(ClientViolet, ClientRed))),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(account.name.firstOrNull()?.uppercase() ?: "T", color = Color.White, fontSize = 40.sp, fontWeight = FontWeight.SemiBold)
-        }
+        TelegramAvatar(
+            repository = repository,
+            fileId = account.avatarFileId,
+            label = account.name,
+            size = 104.dp
+        )
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 16.dp)) {
             Text(account.name.ifBlank { "Telegram" }, color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.SemiBold)
             if (account.isPremium) {
@@ -696,7 +705,7 @@ private fun ProfileScreen(repository: TelegramRepository, onOpenStory: (Telegram
         if (myStories.isEmpty()) {
             Text("Активных историй не найдено.", color = ClientMuted, fontSize = 12.sp, modifier = Modifier.align(Alignment.Start))
         } else {
-            StoriesStrip(myStories, onOpenStory)
+            StoriesStrip(repository, myStories, onOpenStory)
         }
     }
 }
@@ -776,6 +785,39 @@ private fun LocalMediaImage(path: String, modifier: Modifier = Modifier) {
 }
 
 @Composable
+private fun TelegramAvatar(
+    repository: TelegramRepository,
+    fileId: Int?,
+    label: String,
+    size: Dp
+) {
+    val path by produceState<String?>(initialValue = null, fileId) {
+        value = fileId?.let { repository.downloadAvatar(it) }
+    }
+    val bitmap by produceState<ImageBitmap?>(initialValue = null, path) {
+        value = withContext(Dispatchers.IO) {
+            path?.let { BitmapFactory.decodeFile(it)?.asImageBitmap() }
+        }
+    }
+    Box(
+        Modifier.size(size).clip(CircleShape)
+            .background(Brush.linearGradient(listOf(ClientViolet, ClientRed))),
+        contentAlignment = Alignment.Center
+    ) {
+        if (bitmap != null) {
+            Image(bitmap!!, contentDescription = "Фото профиля: $label", modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+        } else {
+            Text(
+                label.firstOrNull()?.uppercase() ?: "T",
+                color = Color.White,
+                fontSize = (size.value * 0.38f).sp,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+    }
+}
+
+@Composable
 private fun LoopingVideo(path: String, modifier: Modifier = Modifier) {
     var videoView by remember(path) { mutableStateOf<VideoView?>(null) }
     AndroidView(
@@ -826,20 +868,14 @@ private fun SearchBox(value: String, onChange: (String) -> Unit, modifier: Modif
 }
 
 @Composable
-private fun LiveChatRow(chat: TelegramChat, onClick: () -> Unit) {
+private fun LiveChatRow(chat: TelegramChat, repository: TelegramRepository, onClick: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().padding(vertical = 3.dp).clip(RoundedCornerShape(18.dp))
             .background(Color(0x991A1822)).clickable(onClick = onClick)
             .padding(horizontal = 13.dp, vertical = 13.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(
-            Modifier.size(52.dp).clip(CircleShape)
-                .background(Brush.linearGradient(listOf(ClientViolet.copy(alpha = 0.35f), ClientRed.copy(alpha = 0.35f)))),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(chat.title.firstOrNull()?.uppercase() ?: "T", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.SemiBold)
-        }
+        TelegramAvatar(repository, chat.avatarFileId, chat.title, 52.dp)
         Spacer(Modifier.width(13.dp))
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -864,6 +900,7 @@ private fun LiveChatRow(chat: TelegramChat, onClick: () -> Unit) {
 private fun LiveChatScreen(repository: TelegramRepository, chat: TelegramChat, onBack: () -> Unit) {
     val messages by repository.messages.collectAsState()
     val deletedArchive by repository.deletedMessages.collectAsState()
+    val chatProfile by repository.chatProfile.collectAsState()
     val clipboard = LocalClipboardManager.current
     var text by remember { mutableStateOf("") }
     var showDeletionHistory by remember { mutableStateOf(false) }
@@ -875,7 +912,7 @@ private fun LiveChatScreen(repository: TelegramRepository, chat: TelegramChat, o
     ) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад", tint = Color.White) }
-            Column(Modifier.weight(1f)) {
+            Column(Modifier.weight(1f).clickable { repository.loadChatProfile(chat.id) }) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(chat.title, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     if (chat.isDeveloper) DeveloperBadge()
@@ -959,6 +996,28 @@ private fun LiveChatScreen(repository: TelegramRepository, chat: TelegramChat, o
                         items(visibleDeletedMessages, key = { it.id }) { message ->
                             DeletionHistoryRow(message.text, message.sender, message.deletedAt ?: message.timestamp) {
                                 clipboard.setText(AnnotatedString(message.text))
+                            }
+                        }
+                    }
+                    chatProfile?.let { profile ->
+                        ModalBottomSheet(
+                            onDismissRequest = repository::closeChatProfile,
+                            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                            containerColor = ClientPanel,
+                            contentColor = Color.White
+                        ) {
+                            Column(
+                                Modifier.fillMaxWidth().padding(horizontal = 22.dp).padding(bottom = 28.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                TelegramAvatar(repository, profile.avatarFileId, profile.title, 92.dp)
+                                Text(profile.title, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 14.dp))
+                                if (profile.username.isNotBlank()) {
+                                    Text("@${profile.username}", color = ClientViolet, fontSize = 14.sp, modifier = Modifier.padding(top = 5.dp))
+                                }
+                                if (profile.phoneNumber.isNotBlank()) ProfileInfoRow("Номер телефона", profile.phoneNumber)
+                                if (profile.userId != null) ProfileInfoRow("Telegram ID", profile.userId.toString())
+                                if (profile.isGroup) ProfileInfoRow("Тип", "Группа или канал")
                             }
                         }
                     }
@@ -1138,65 +1197,109 @@ private fun SettingsScreen(repository: TelegramRepository, onOpenProfile: () -> 
     val profile by repository.profile.collectAsState()
     val isDeveloperAccount by repository.isDeveloperAccount.collectAsState()
     val connection by repository.connectionState.collectAsState()
+    val ghostMode by repository.ghostMode.collectAsState()
     var showProxyForm by remember { mutableStateOf(false) }
     var showAdminPanel by remember { mutableStateOf(false) }
     if (showAdminPanel) {
         AdminPanel(repository, onBack = { showAdminPanel = false })
         return
     }
-    Column(Modifier.fillMaxSize()) {
+    LazyColumn(
+        Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        item { SettingsSectionTitle("Аккаунт") }
         if (profile != null) {
+            item {
+                SettingRow(
+                    icon = Icons.Default.Person,
+                    title = profile!!.name.ifBlank { "Мой профиль" },
+                    subtitle = listOfNotNull(
+                        profile!!.username.takeIf(String::isNotBlank)?.let { "@$it" },
+                        profile!!.phoneNumber.takeIf(String::isNotBlank)
+                    ).joinToString(" · ").ifBlank { "Фото профиля и активные истории" },
+                    onClick = onOpenProfile
+                )
+            }
+        }
+        item { SettingsSectionTitle("Чаты") }
+        item {
             SettingRow(
-                icon = Icons.Default.Person,
-                title = profile!!.name.ifBlank { "Мой профиль" },
-                subtitle = listOfNotNull(
-                    profile!!.username.takeIf(String::isNotBlank)?.let { "@$it" },
-                    profile!!.phoneNumber.takeIf(String::isNotBlank)
-                ).joinToString(" · ").ifBlank { "Открыть профиль и истории" },
-                onClick = onOpenProfile
+                icon = Icons.Default.Archive,
+                title = "Архив удалённых сообщений",
+                subtitle = "Локально сохранять новые входящие сообщения",
+                trailing = { Switch(checked = archiveEnabled, onCheckedChange = repository::setArchiveEnabled) }
             )
         }
-        SettingRow(
-            icon = Icons.Default.Archive,
-            title = "Локальный архив",
-            subtitle = "Сохранять новые входящие сообщения на устройстве",
-            trailing = { Switch(checked = archiveEnabled, onCheckedChange = repository::setArchiveEnabled) }
-        )
-        SettingRow(
-            icon = Icons.Default.Shield,
-            title = "MTProto-прокси",
-            subtitle = "Настроить соединение через прокси TDLib",
-            onClick = { showProxyForm = !showProxyForm }
-        )
-        AnimatedVisibility(showProxyForm) {
-            ProxyForm(repository)
-        }
-        SettingRow(
-            icon = Icons.Default.Settings,
-            title = "Данные и конфиденциальность",
-            subtitle = "Архив остаётся на устройстве и шифруется",
-        )
-        SettingRow(
-            icon = Icons.Default.ChatBubbleOutline,
-            title = "Соединение",
-            subtitle = connection
-        )
-        if (isDeveloperAccount) {
+        item { SettingsSectionTitle("Конфиденциальность") }
+        item {
             SettingRow(
                 icon = Icons.Default.Shield,
-                title = "Панель разработчика",
-                subtitle = "Статус клиента, диагностика и обслуживание",
-                onClick = { showAdminPanel = true }
+                title = "Режим призрака",
+                subtitle = "Не показывать статус «в сети»; новые сообщения остаются непрочитанными",
+                trailing = { Switch(checked = ghostMode, onCheckedChange = repository::setGhostMode) }
             )
         }
-        Text(
-            "NiceGram использует официальный TDLib. Настройки и доступность функций Telegram, включая истории, определяются сервером Telegram.",
-            color = ClientMuted,
-            fontSize = 11.sp,
-            lineHeight = 16.sp,
-            modifier = Modifier.padding(horizontal = 22.dp, vertical = 13.dp)
-        )
+        item {
+            Text(
+                "Режим управляет онлайн-статусом TDLib и не меняет серверные настройки приватности Telegram.",
+                color = ClientMuted,
+                fontSize = 11.sp,
+                lineHeight = 16.sp,
+                modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 8.dp)
+            )
+        }
+        item { SettingsSectionTitle("Подключение") }
+        item {
+            SettingRow(
+                icon = Icons.Default.Shield,
+                title = "MTProto-прокси",
+                subtitle = "Настроить подключение через TDLib",
+                onClick = { showProxyForm = !showProxyForm }
+            )
+        }
+        if (showProxyForm) item { ProxyForm(repository) }
+        item {
+            SettingRow(
+                icon = Icons.Default.ChatBubbleOutline,
+                title = "Состояние соединения",
+                subtitle = connection
+            )
+        }
+        item { SettingsSectionTitle("NiceGram") }
+        if (isDeveloperAccount) {
+            item {
+                SettingRow(
+                    icon = Icons.Default.Settings,
+                    title = "Панель разработчика",
+                    subtitle = "Статистика клиента, диагностика и обслуживание",
+                    onClick = { showAdminPanel = true }
+                )
+            }
+        }
+        item {
+            Text(
+                "Официальные функции Telegram, включая приватность и истории, зависят от настроек аккаунта и сервера.",
+                color = ClientMuted,
+                fontSize = 11.sp,
+                lineHeight = 16.sp,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 13.dp)
+            )
+        }
     }
+}
+
+@Composable
+private fun SettingsSectionTitle(title: String) {
+    Text(
+        title.uppercase(),
+        color = ClientViolet,
+        fontSize = 11.sp,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = 1.sp,
+        modifier = Modifier.padding(start = 12.dp, top = 14.dp, bottom = 3.dp)
+    )
 }
 
 @Composable

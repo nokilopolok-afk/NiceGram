@@ -43,7 +43,8 @@ data class TelegramChat(
     val timestamp: Int,
     val unreadCount: Int,
     val isGroup: Boolean,
-    val isDeveloper: Boolean
+    val isDeveloper: Boolean,
+    val avatarFileId: Int?
 )
 
 data class TelegramFolder(val id: Int, val title: String)
@@ -53,7 +54,17 @@ data class TelegramProfile(
     val name: String,
     val username: String,
     val phoneNumber: String,
-    val isPremium: Boolean
+    val isPremium: Boolean,
+    val avatarFileId: Int?
+)
+
+data class TelegramChatProfile(
+    val title: String,
+    val username: String,
+    val phoneNumber: String,
+    val userId: Long?,
+    val isGroup: Boolean,
+    val avatarFileId: Int?
 )
 
 data class TelegramStory(
@@ -62,7 +73,8 @@ data class TelegramStory(
     val storyId: Int,
     val timestamp: Int,
     val isSeen: Boolean,
-    val isMine: Boolean
+    val isMine: Boolean,
+    val avatarFileId: Int?
 )
 
 data class TelegramStoryPresentation(
@@ -121,6 +133,15 @@ class TelegramRepository(context: Context) {
 
     private val _profile = MutableStateFlow<TelegramProfile?>(null)
     val profile: StateFlow<TelegramProfile?> = _profile.asStateFlow()
+
+    private val _chatProfile = MutableStateFlow<TelegramChatProfile?>(null)
+    val chatProfile: StateFlow<TelegramChatProfile?> = _chatProfile.asStateFlow()
+
+    private val _ghostMode = MutableStateFlow(
+        appContext.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
+            .getBoolean(KEY_GHOST_MODE, false)
+    )
+    val ghostMode: StateFlow<Boolean> = _ghostMode.asStateFlow()
 
     private val _isDeveloperAccount = MutableStateFlow(false)
     val isDeveloperAccount: StateFlow<Boolean> = _isDeveloperAccount.asStateFlow()
@@ -215,6 +236,65 @@ class TelegramRepository(context: Context) {
 
     fun clearNotice() {
         _notice.value = null
+    }
+
+    fun setGhostMode(enabled: Boolean) {
+        val previousValue = _ghostMode.value
+        _ghostMode.value = enabled
+        appContext.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean(KEY_GHOST_MODE, enabled)
+            .apply()
+        scope.launch {
+            if (_authState.value == TelegramAuthState.Ready) {
+                try {
+                    request(TdApi.SetOption("online", TdApi.OptionValueBoolean(!enabled)))
+                } catch (error: Exception) {
+                    _ghostMode.value = previousValue
+                    appContext.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
+                        .edit()
+                        .putBoolean(KEY_GHOST_MODE, previousValue)
+                        .apply()
+                    _notice.value = error.message ?: "Не удалось применить режим призрака."
+                }
+            }
+        }
+    }
+
+    fun loadChatProfile(chatId: Long) {
+        scope.launch {
+            try {
+                val chat = request(TdApi.GetChat(chatId))
+                val userId = (chat.type as? TdApi.ChatTypePrivate)?.userId
+                val user = userId?.let { request(TdApi.GetUser(it)) }
+                val userName = user?.let {
+                    listOf(it.firstName, it.lastName).filter(String::isNotBlank).joinToString(" ")
+                }?.takeIf(String::isNotBlank)
+                _chatProfile.value = TelegramChatProfile(
+                    title = userName ?: chat.title,
+                    username = user?.usernames?.activeUsernames?.firstOrNull().orEmpty(),
+                    phoneNumber = user?.phoneNumber.orEmpty(),
+                    userId = userId,
+                    isGroup = userId == null,
+                    avatarFileId = user?.profilePhoto?.small?.id ?: chat.photo?.small?.id
+                )
+            } catch (error: Exception) {
+                _notice.value = error.message ?: "Не удалось загрузить профиль."
+            }
+        }
+    }
+
+    fun closeChatProfile() {
+        _chatProfile.value = null
+    }
+
+    suspend fun downloadAvatar(fileId: Int): String? {
+        return try {
+            downloadFile(fileId).local.path.takeIf(String::isNotBlank)
+        } catch (error: Exception) {
+            _notice.value = error.message ?: "Не удалось загрузить фото профиля."
+            null
+        }
     }
 
     fun selectFolder(folderId: Int?) {
@@ -548,6 +628,13 @@ class TelegramRepository(context: Context) {
                 _authState.value = TelegramAuthState.Ready
                 me = request(TdApi.GetMe())
                 publishProfile()
+                if (_ghostMode.value) {
+                    try {
+                        request(TdApi.SetOption("online", TdApi.OptionValueBoolean(false)))
+                    } catch (error: Exception) {
+                        _notice.value = error.message ?: "Не удалось применить режим призрака."
+                    }
+                }
                 recordAdminEvent("Аккаунт авторизован")
                 loadChats()
             }
@@ -568,7 +655,8 @@ class TelegramRepository(context: Context) {
             name = listOf(user.firstName, user.lastName).filter(String::isNotBlank).joinToString(" "),
             username = user.usernames?.activeUsernames?.firstOrNull().orEmpty(),
             phoneNumber = user.phoneNumber,
-            isPremium = user.isPremium
+            isPremium = user.isPremium,
+            avatarFileId = user.profilePhoto?.small?.id
         )
     }
 
@@ -601,7 +689,8 @@ class TelegramRepository(context: Context) {
                                     storyId = info.storyId,
                                     timestamp = info.date,
                                     isSeen = info.storyId <= active.maxReadStoryId,
-                                    isMine = (chatObjects[chatId]?.type as? TdApi.ChatTypePrivate)?.userId == me?.id
+                                    isMine = (chatObjects[chatId]?.type as? TdApi.ChatTypePrivate)?.userId == me?.id,
+                                    avatarFileId = chatObjects[chatId]?.photo?.small?.id
                                 )
                             }
                         } catch (error: Exception) {
@@ -629,7 +718,8 @@ class TelegramRepository(context: Context) {
                     timestamp = chat.lastMessage?.date ?: 0,
                     unreadCount = chat.unreadCount,
                     isGroup = chat.type !is TdApi.ChatTypePrivate,
-                    isDeveloper = (chat.type as? TdApi.ChatTypePrivate)?.userId == DEVELOPER_USER_ID
+                    isDeveloper = (chat.type as? TdApi.ChatTypePrivate)?.userId == DEVELOPER_USER_ID,
+                    avatarFileId = chat.photo?.small?.id
                 )
             }
     }
@@ -747,5 +837,6 @@ class TelegramRepository(context: Context) {
         private const val DEVELOPER_USER_ID = 6226314827L
         private const val PREFERENCES = "nicegram_preferences"
         private const val KEY_ARCHIVE_ENABLED = "archive_enabled"
+        private const val KEY_GHOST_MODE = "ghost_mode"
     }
 }
