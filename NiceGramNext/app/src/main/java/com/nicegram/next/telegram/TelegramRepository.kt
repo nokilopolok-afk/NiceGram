@@ -46,6 +46,32 @@ data class TelegramChat(
     val isDeveloper: Boolean
 )
 
+data class TelegramFolder(val id: Int, val title: String)
+
+data class TelegramProfile(
+    val name: String,
+    val username: String,
+    val phoneNumber: String,
+    val isPremium: Boolean
+)
+
+data class TelegramStory(
+    val chatId: Long,
+    val chatTitle: String,
+    val storyId: Int,
+    val timestamp: Int,
+    val isSeen: Boolean,
+    val isMine: Boolean
+)
+
+data class TelegramStoryPresentation(
+    val chatTitle: String,
+    val caption: String,
+    val timestamp: Int,
+    val mediaPath: String?,
+    val isVideo: Boolean
+)
+
 data class TelegramMessage(
     val id: Long,
     val chatId: Long,
@@ -54,7 +80,10 @@ data class TelegramMessage(
     val timestamp: Int,
     val outgoing: Boolean,
     val isDeveloper: Boolean,
-    val deletedAt: Int? = null
+    val deletedAt: Int? = null,
+    val mediaFileId: Int? = null,
+    val stickerEmoji: String? = null,
+    val isPremiumSticker: Boolean = false
 )
 
 object TelegramRuntime {
@@ -83,6 +112,21 @@ class TelegramRepository(context: Context) {
     private val _chats = MutableStateFlow<List<TelegramChat>>(emptyList())
     val chats: StateFlow<List<TelegramChat>> = _chats.asStateFlow()
 
+    private val _folders = MutableStateFlow<List<TelegramFolder>>(emptyList())
+    val folders: StateFlow<List<TelegramFolder>> = _folders.asStateFlow()
+
+    private val _selectedFolderId = MutableStateFlow<Int?>(null)
+    val selectedFolderId: StateFlow<Int?> = _selectedFolderId.asStateFlow()
+
+    private val _profile = MutableStateFlow<TelegramProfile?>(null)
+    val profile: StateFlow<TelegramProfile?> = _profile.asStateFlow()
+
+    private val _stories = MutableStateFlow<List<TelegramStory>>(emptyList())
+    val stories: StateFlow<List<TelegramStory>> = _stories.asStateFlow()
+
+    private val _openStory = MutableStateFlow<TelegramStoryPresentation?>(null)
+    val openStory: StateFlow<TelegramStoryPresentation?> = _openStory.asStateFlow()
+
     private val _messages = MutableStateFlow<List<TelegramMessage>>(emptyList())
     val messages: StateFlow<List<TelegramMessage>> = _messages.asStateFlow()
 
@@ -103,6 +147,8 @@ class TelegramRepository(context: Context) {
 
     private val chatObjects = linkedMapOf<Long, TdApi.Chat>()
     private val knownMessages = mutableMapOf<Long, MutableList<TelegramMessage>>()
+    private var visibleChatIds: Set<Long> = emptySet()
+    private var activeFolderId: Int? = null
     private var activeChatId: Long? = null
     private var client: Client? = null
     private var me: TdApi.User? = null
@@ -163,6 +209,57 @@ class TelegramRepository(context: Context) {
     fun clearNotice() {
         _notice.value = null
     }
+
+    fun selectFolder(folderId: Int?) {
+        activeFolderId = folderId
+        _selectedFolderId.value = folderId
+        scope.launch { loadChats(folderId) }
+    }
+
+    fun refreshStories() {
+        scope.launch { loadStories() }
+    }
+
+    fun showStory(story: TelegramStory) {
+        scope.launch {
+            try {
+                val fullStory = request(TdApi.GetStory(story.chatId, story.storyId, false))
+                val (file, isVideo) = when (val content = fullStory.content) {
+                    is TdApi.StoryContentPhoto -> content.photo.sizes.maxByOrNull { it.width.toLong() * it.height }
+                        ?.let { it.photo to false }
+                        ?: (null to false)
+                    is TdApi.StoryContentVideo -> content.video.video to true
+                    else -> null to false
+                }
+                val localPath = file?.let { downloadFile(it.id).local?.path }
+                request(TdApi.OpenStory(story.chatId, story.storyId))
+                _openStory.value = TelegramStoryPresentation(
+                    chatTitle = story.chatTitle,
+                    caption = fullStory.caption.text,
+                    timestamp = fullStory.date,
+                    mediaPath = localPath,
+                    isVideo = isVideo
+                )
+            } catch (error: Exception) {
+                _notice.value = error.message ?: "Не удалось открыть историю."
+            }
+        }
+    }
+
+    fun closeStory(story: TelegramStory?) {
+        _openStory.value = null
+        if (story != null) {
+            scope.launch {
+                try {
+                    request(TdApi.CloseStory(story.chatId, story.storyId))
+                } catch (error: Exception) {
+                    _notice.value = error.message ?: "Не удалось закрыть историю."
+                }
+            }
+        }
+    }
+
+    suspend fun downloadFile(fileId: Int): TdApi.File = request(TdApi.DownloadFile(fileId, 32, 0, 0, true))
 
     fun submitPhone(phone: String) {
         if (phone.isBlank()) {
@@ -326,6 +423,16 @@ class TelegramRepository(context: Context) {
                 chatObjects[update.chat.id] = update.chat
                 publishChats()
             }
+            is TdApi.UpdateChatFolders -> {
+                _folders.value = update.chatFolders.map { folder ->
+                    TelegramFolder(folder.id, folder.name.text.text)
+                }
+                if (activeFolderId != null && _folders.value.none { it.id == activeFolderId }) {
+                    activeFolderId = null
+                    _selectedFolderId.value = null
+                    loadChats()
+                }
+            }
             is TdApi.UpdateChatTitle -> {
                 chatObjects[update.chatId]?.title = update.title
                 publishChats()
@@ -358,7 +465,10 @@ class TelegramRepository(context: Context) {
                 }
             }
             is TdApi.UpdateUser -> {
-                if (update.user.id == me?.id) me = update.user
+                if (update.user.id == me?.id) {
+                    me = update.user
+                    publishProfile()
+                }
             }
         }
     }
@@ -404,6 +514,7 @@ class TelegramRepository(context: Context) {
             is TdApi.AuthorizationStateReady -> {
                 _authState.value = TelegramAuthState.Ready
                 me = request(TdApi.GetMe())
+                publishProfile()
                 loadChats()
             }
             is TdApi.AuthorizationStateLoggingOut -> _authState.value = TelegramAuthState.Starting
@@ -415,9 +526,21 @@ class TelegramRepository(context: Context) {
         }
     }
 
-    private suspend fun loadChats() {
+    private fun publishProfile() {
+        val user = me ?: return
+        _profile.value = TelegramProfile(
+            name = listOf(user.firstName, user.lastName).filter(String::isNotBlank).joinToString(" "),
+            username = user.usernames?.activeUsernames?.firstOrNull().orEmpty(),
+            phoneNumber = user.phoneNumber,
+            isPremium = user.isPremium
+        )
+    }
+
+    private suspend fun loadChats(folderId: Int? = activeFolderId) {
         try {
-            val result = request(TdApi.GetChats(TdApi.ChatListMain(), 100))
+            val chatList = folderId?.let { TdApi.ChatListFolder(it) } ?: TdApi.ChatListMain()
+            val result = request(TdApi.GetChats(chatList, 100))
+            visibleChatIds = result.chatIds.toSet()
             result.chatIds.toList().map { chatId ->
                 scope.async { request(TdApi.GetChat(chatId)) }
             }.awaitAll().forEach { chatObjects[it.id] = it }
@@ -427,8 +550,40 @@ class TelegramRepository(context: Context) {
         }
     }
 
+    private suspend fun loadStories() {
+        try {
+            val chatIds = chatObjects.keys.toList()
+            val loadedStories = chatIds.chunked(8).flatMap { batch ->
+                batch.map { chatId ->
+                    scope.async {
+                        try {
+                            val active = request(TdApi.GetChatActiveStories(chatId))
+                            active.stories.map { info ->
+                                TelegramStory(
+                                    chatId = chatId,
+                                    chatTitle = chatObjects[chatId]?.title.orEmpty(),
+                                    storyId = info.storyId,
+                                    timestamp = info.date,
+                                    isSeen = info.storyId <= active.maxReadStoryId,
+                                    isMine = (chatObjects[chatId]?.type as? TdApi.ChatTypePrivate)?.userId == me?.id
+                                )
+                            }
+                        } catch (error: Exception) {
+                            _notice.value = error.message ?: "Не удалось загрузить истории одного из чатов."
+                            emptyList()
+                        }
+                    }
+                }.awaitAll().flatten()
+            }.sortedByDescending { it.timestamp }
+            _stories.value = loadedStories
+        } catch (error: Exception) {
+            _notice.value = error.message ?: "Не удалось загрузить истории."
+        }
+    }
+
     private fun publishChats() {
         _chats.value = chatObjects.values
+            .filter { (visibleChatIds.isEmpty() && activeFolderId == null) || it.id in visibleChatIds }
             .sortedByDescending { it.lastMessage?.date ?: 0 }
             .map { chat ->
                 TelegramChat(
@@ -458,7 +613,22 @@ class TelegramRepository(context: Context) {
         text = messagePreview(message),
         timestamp = message.date,
         outgoing = message.isOutgoing,
-        isDeveloper = (message.senderId as? TdApi.MessageSenderUser)?.userId == DEVELOPER_USER_ID
+        isDeveloper = (message.senderId as? TdApi.MessageSenderUser)?.userId == DEVELOPER_USER_ID,
+        mediaFileId = when (val content = message.content) {
+            is TdApi.MessageSticker -> content.sticker.sticker.id
+            is TdApi.MessageAnimatedEmoji -> content.animatedEmoji.sticker?.sticker?.id
+            else -> null
+        },
+        stickerEmoji = when (val content = message.content) {
+            is TdApi.MessageSticker -> content.sticker.emoji
+            is TdApi.MessageAnimatedEmoji -> content.emoji
+            else -> null
+        },
+        isPremiumSticker = when (val content = message.content) {
+            is TdApi.MessageSticker -> content.isPremium
+            is TdApi.MessageAnimatedEmoji -> content.animatedEmoji.sticker?.isPremium == true
+            else -> false
+        }
     )
 
     private fun messagePreview(message: TdApi.Message): String = when (val content = message.content) {
@@ -468,6 +638,7 @@ class TelegramRepository(context: Context) {
         is TdApi.MessageDocument -> content.caption.text.ifBlank { "Файл" }
         is TdApi.MessageVoiceNote -> "Голосовое сообщение"
         is TdApi.MessageSticker -> "Стикер"
+        is TdApi.MessageAnimatedEmoji -> content.emoji
         else -> "Сообщение"
     }
 

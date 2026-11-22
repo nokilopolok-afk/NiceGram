@@ -2,6 +2,11 @@ package com.nicegram.next.telegram
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -11,6 +16,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,6 +34,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -41,12 +48,15 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -62,24 +72,37 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
+import android.graphics.BitmapFactory
+import android.widget.VideoView
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.nicegram.next.proxy.ProxyLinkParser
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -92,7 +115,7 @@ private val ClientViolet = Color(0xFFC09AFF)
 private val ClientRed = Color(0xFFFF657A)
 private val ClientMuted = Color(0xFF9B96A8)
 
-private enum class ClientTab { Chats, Archive, Settings }
+private enum class ClientTab { Chats, Archive, Profile, Settings }
 
 @Composable
 fun TelegramClientApp(repository: TelegramRepository) {
@@ -100,6 +123,8 @@ fun TelegramClientApp(repository: TelegramRepository) {
     val notice by repository.notice.collectAsState()
     var selectedTab by remember { mutableStateOf(ClientTab.Chats) }
     var openChat by remember { mutableStateOf<TelegramChat?>(null) }
+    var selectedStory by remember { mutableStateOf<TelegramStory?>(null) }
+    val storyPresentation by repository.openStory.collectAsState()
 
     Box(Modifier.fillMaxSize().background(ClientInk)) {
         ClientBackdrop()
@@ -116,33 +141,48 @@ fun TelegramClientApp(repository: TelegramRepository) {
                 TelegramAuthState.Starting -> CenteredStatus("Запускаем защищённое соединение…", loading = true)
                 TelegramAuthState.MissingCredentials -> MissingCredentialsScreen()
                 TelegramAuthState.Ready -> {
-                    AnimatedContent(
-                        targetState = openChat,
-                        transitionSpec = {
-                            (fadeIn() + slideInHorizontally { width -> if (targetState != null) width / 12 else -width / 12 }) togetherWith
-                                (fadeOut() + slideOutHorizontally { width -> if (targetState != null) -width / 12 else width / 12 })
-                        },
-                        label = "chat-navigation"
-                    ) { chat ->
-                        if (chat != null) {
-                            LiveChatScreen(
-                                repository = repository,
-                                chat = chat,
-                                onBack = {
-                                    openChat = null
-                                    repository.closeChat()
+                    Box(Modifier.fillMaxSize()) {
+                        AnimatedContent(
+                            targetState = openChat,
+                            transitionSpec = {
+                                (fadeIn() + slideInHorizontally { width -> if (targetState != null) width / 12 else -width / 12 }) togetherWith
+                                    (fadeOut() + slideOutHorizontally { width -> if (targetState != null) -width / 12 else width / 12 })
+                            },
+                            label = "chat-navigation"
+                        ) { chat ->
+                            if (chat != null) {
+                                LiveChatScreen(
+                                    repository = repository,
+                                    chat = chat,
+                                    onBack = {
+                                        openChat = null
+                                        repository.closeChat()
+                                    }
+                                )
+                            } else {
+                                LiveHome(
+                                    repository = repository,
+                                    selectedTab = selectedTab,
+                                    onSelectTab = { selectedTab = it },
+                                    onOpenChat = {
+                                        openChat = it
+                                        repository.openChat(it)
+                                    },
+                                    onOpenStory = {
+                                        selectedStory = it
+                                        repository.showStory(it)
+                                    },
+                                    notice = notice
+                                )
+                            }
+                        }
+                        if (storyPresentation != null && selectedStory != null) {
+                            StoryViewer(
+                                presentation = storyPresentation!!,
+                                onClose = {
+                                    repository.closeStory(selectedStory)
+                                    selectedStory = null
                                 }
-                            )
-                        } else {
-                            LiveHome(
-                                repository = repository,
-                                selectedTab = selectedTab,
-                                onSelectTab = { selectedTab = it },
-                                onOpenChat = {
-                                    openChat = it
-                                    repository.openChat(it)
-                                },
-                                notice = notice
                             )
                         }
                     }
@@ -287,14 +327,29 @@ private fun AuthForm(
     onSubmit: (String) -> Unit
 ) {
     var value by remember(title) { mutableStateOf("") }
+    val transition = rememberInfiniteTransition(label = "login-mark")
+    val pulse by transition.animateFloat(
+        initialValue = 0.96f,
+        targetValue = 1.04f,
+        animationSpec = infiniteRepeatable(tween(1800), repeatMode = RepeatMode.Reverse),
+        label = "login-mark-pulse"
+    )
     Box(Modifier.fillMaxSize().padding(22.dp), contentAlignment = Alignment.Center) {
         Column(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp))
                 .background(ClientPanel).border(1.dp, Color(0x26FFFFFF), RoundedCornerShape(28.dp))
                 .padding(22.dp)
         ) {
-            Text("NICEGRAM", color = ClientViolet, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
-            Text(title, color = Color.White, fontSize = 27.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 16.dp))
+            Box(
+                Modifier.size(66.dp).graphicsLayer { scaleX = pulse; scaleY = pulse }
+                    .clip(CircleShape)
+                    .background(Brush.linearGradient(listOf(ClientViolet, ClientRed))),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.AutoMirrored.Filled.Send, null, tint = Color.White, modifier = Modifier.size(28.dp))
+            }
+            Text("NICEGRAM", color = ClientViolet, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp, modifier = Modifier.padding(top = 18.dp))
+            Text(title, color = Color.White, fontSize = 27.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 7.dp))
             Text(detail, color = ClientMuted, fontSize = 13.sp, lineHeight = 19.sp, modifier = Modifier.padding(top = 8.dp, bottom = 22.dp))
             Text(label, color = ClientMuted, fontSize = 12.sp)
             TextField(
@@ -334,13 +389,32 @@ private fun RegistrationForm(error: String?, onSubmit: (String, String) -> Unit)
         Modifier.fillMaxSize().padding(22.dp),
         verticalArrangement = Arrangement.Center
     ) {
-        Text("Создать аккаунт", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.SemiBold)
+        AuthMark()
+        Text("Создать аккаунт", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 22.dp))
         Text("Укажи имя, которое увидят собеседники.", color = ClientMuted, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp, bottom = 20.dp))
         TextField(firstName, { firstName = it }, label = { Text("Имя") }, singleLine = true, colors = authFieldColors(), modifier = Modifier.fillMaxWidth())
         Spacer(Modifier.height(10.dp))
         TextField(lastName, { lastName = it }, label = { Text("Фамилия (необязательно)") }, singleLine = true, colors = authFieldColors(), modifier = Modifier.fillMaxWidth())
         AnimatedVisibility(error != null) { Text(error.orEmpty(), color = ClientRed, fontSize = 12.sp, modifier = Modifier.padding(top = 10.dp)) }
         GradientButton("Завершить регистрацию", firstName.isNotBlank(), { onSubmit(firstName, lastName) }, Modifier.padding(top = 16.dp))
+    }
+}
+
+@Composable
+private fun AuthMark() {
+    val transition = rememberInfiniteTransition(label = "registration-mark")
+    val pulse by transition.animateFloat(
+        initialValue = 0.96f,
+        targetValue = 1.04f,
+        animationSpec = infiniteRepeatable(tween(1800), repeatMode = RepeatMode.Reverse),
+        label = "registration-mark-pulse"
+    )
+    Box(
+        Modifier.size(66.dp).graphicsLayer { scaleX = pulse; scaleY = pulse }
+            .clip(CircleShape).background(Brush.linearGradient(listOf(ClientViolet, ClientRed))),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(Icons.AutoMirrored.Filled.Send, null, tint = Color.White, modifier = Modifier.size(28.dp))
     }
 }
 
@@ -379,6 +453,7 @@ private fun LiveHome(
     selectedTab: ClientTab,
     onSelectTab: (ClientTab) -> Unit,
     onOpenChat: (TelegramChat) -> Unit,
+    onOpenStory: (TelegramStory) -> Unit,
     notice: String?
 ) {
     Scaffold(
@@ -400,6 +475,7 @@ private fun LiveHome(
                                 when (tab) {
                                     ClientTab.Chats -> Icons.Default.ChatBubbleOutline
                                     ClientTab.Archive -> Icons.Default.Archive
+                                    ClientTab.Profile -> Icons.Default.Person
                                     ClientTab.Settings -> Icons.Default.Settings
                                 },
                                 contentDescription = null
@@ -447,8 +523,9 @@ private fun LiveHome(
                 }
             }
             when (selectedTab) {
-                ClientTab.Chats -> LiveChats(repository, onOpenChat)
+                ClientTab.Chats -> LiveChats(repository, onOpenChat, onOpenStory)
                 ClientTab.Archive -> ArchiveScreen(repository)
+                ClientTab.Profile -> ProfileScreen(repository, onOpenStory)
                 ClientTab.Settings -> SettingsScreen(repository)
             }
         }
@@ -459,15 +536,61 @@ private val ClientTab.label: String
     get() = when (this) {
         ClientTab.Chats -> "Чаты"
         ClientTab.Archive -> "Архив"
+        ClientTab.Profile -> "Профиль"
         ClientTab.Settings -> "Настройки"
     }
 
 @Composable
-private fun LiveChats(repository: TelegramRepository, onOpenChat: (TelegramChat) -> Unit) {
+private fun LiveChats(
+    repository: TelegramRepository,
+    onOpenChat: (TelegramChat) -> Unit,
+    onOpenStory: (TelegramStory) -> Unit
+) {
     val chats by repository.chats.collectAsState()
+    val folders by repository.folders.collectAsState()
+    val selectedFolder by repository.selectedFolderId.collectAsState()
+    val stories by repository.stories.collectAsState()
     var query by remember { mutableStateOf("") }
+    LaunchedEffect(chats.isNotEmpty(), stories.isEmpty()) {
+        if (chats.isNotEmpty() && stories.isEmpty()) repository.refreshStories()
+    }
     val filtered = remember(chats, query) {
         chats.filter { it.title.contains(query, true) || it.preview.contains(query, true) }
+    }
+    LazyRow(
+        Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 3.dp),
+        contentPadding = PaddingValues(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(7.dp)
+    ) {
+        item {
+            FilterChip(
+                selected = selectedFolder == null,
+                onClick = { repository.selectFolder(null) },
+                label = { Text("Все") }
+            )
+        }
+        items(folders, key = { it.id }) { folder ->
+            FilterChip(
+                selected = selectedFolder == folder.id,
+                onClick = { repository.selectFolder(folder.id) },
+                label = { Text(folder.title, maxLines = 1) }
+            )
+        }
+    }
+    if (stories.isNotEmpty()) StoriesStrip(stories, onOpenStory)
+    else {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("Истории", color = Color.White, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+            Text(
+                "Обновить",
+                color = ClientViolet,
+                fontSize = 12.sp,
+                modifier = Modifier.clickable { repository.refreshStories() }.padding(7.dp)
+            )
+        }
     }
     SearchBox(query, { query = it }, Modifier.padding(horizontal = 18.dp, vertical = 8.dp))
     if (filtered.isEmpty()) {
@@ -484,6 +607,188 @@ private fun LiveChats(repository: TelegramRepository, onOpenChat: (TelegramChat)
                 LiveChatRow(chat, onClick = { onOpenChat(chat) })
             }
         }
+    }
+}
+
+@Composable
+private fun StoriesStrip(stories: List<TelegramStory>, onOpenStory: (TelegramStory) -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(top = 5.dp, bottom = 7.dp)) {
+        Text("Истории", color = Color.White, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 20.dp, bottom = 7.dp))
+        LazyRow(
+            contentPadding = PaddingValues(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            items(stories, key = { "${it.chatId}:${it.storyId}" }) { story ->
+                Column(
+                    Modifier.width(70.dp).clickable { onOpenStory(story) },
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Box(
+                        Modifier.size(58.dp).clip(CircleShape)
+                            .background(Brush.linearGradient(listOf(ClientViolet, ClientRed)))
+                            .padding(3.dp).clip(CircleShape).background(ClientInk),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(story.chatTitle.firstOrNull()?.uppercase() ?: "T", color = Color.White, fontSize = 21.sp)
+                    }
+                    Text(
+                        story.chatTitle,
+                        color = if (story.isSeen) ClientMuted else Color.White,
+                        fontSize = 10.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 5.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProfileScreen(repository: TelegramRepository, onOpenStory: (TelegramStory) -> Unit) {
+    val profile by repository.profile.collectAsState()
+    val stories by repository.stories.collectAsState()
+    val myStories = stories.filter { it.isMine }
+    if (profile == null) {
+        EmptyState("Профиль загружается", "Подождите, пока Telegram вернёт данные аккаунта.")
+        return
+    }
+    val account = profile!!
+    Column(
+        Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 18.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            Modifier.size(104.dp).clip(CircleShape)
+                .background(Brush.linearGradient(listOf(ClientViolet, ClientRed))),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(account.name.firstOrNull()?.uppercase() ?: "T", color = Color.White, fontSize = 40.sp, fontWeight = FontWeight.SemiBold)
+        }
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 16.dp)) {
+            Text(account.name.ifBlank { "Telegram" }, color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.SemiBold)
+            if (account.isPremium) {
+                Icon(Icons.Default.Star, "Telegram Premium", tint = ClientViolet, modifier = Modifier.padding(start = 6.dp).size(18.dp))
+            }
+        }
+        if (account.username.isNotBlank()) {
+            Text("@${account.username}", color = ClientViolet, fontSize = 14.sp, modifier = Modifier.padding(top = 5.dp))
+        }
+        ProfileInfoRow("Номер телефона", account.phoneNumber.ifBlank { "Не указан" })
+        ProfileInfoRow("Статус", if (account.isPremium) "Telegram Premium" else "Обычный аккаунт")
+        Row(
+            Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("Мои истории", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+            Text(
+                "Обновить",
+                color = ClientViolet,
+                fontSize = 12.sp,
+                modifier = Modifier.clickable { repository.refreshStories() }.padding(7.dp)
+            )
+        }
+        if (myStories.isEmpty()) {
+            Text("Активных историй не найдено.", color = ClientMuted, fontSize = 12.sp, modifier = Modifier.align(Alignment.Start))
+        } else {
+            StoriesStrip(myStories, onOpenStory)
+        }
+    }
+}
+
+@Composable
+private fun ProfileInfoRow(title: String, value: String) {
+    Column(
+        Modifier.fillMaxWidth().padding(top = 17.dp)
+            .clip(RoundedCornerShape(16.dp)).background(ClientPanel).padding(14.dp)
+    ) {
+        Text(title, color = ClientMuted, fontSize = 11.sp)
+        Text(value, color = Color.White, fontSize = 14.sp, modifier = Modifier.padding(top = 4.dp))
+    }
+}
+
+@Composable
+private fun StoryViewer(presentation: TelegramStoryPresentation, onClose: () -> Unit) {
+    Dialog(
+        onDismissRequest = onClose,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            Modifier.fillMaxSize().padding(10.dp),
+            color = Color(0xFF08070B),
+            shape = RoundedCornerShape(26.dp)
+        ) {
+            Column(Modifier.fillMaxSize()) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(presentation.chatTitle, color = Color.White, fontWeight = FontWeight.SemiBold)
+                        Text(formatTime(presentation.timestamp), color = ClientMuted, fontSize = 11.sp)
+                    }
+                    IconButton(onClick = onClose) {
+                        Icon(Icons.Default.Close, "Закрыть историю", tint = Color.White)
+                    }
+                }
+                Box(
+                    Modifier.weight(1f).fillMaxWidth().padding(horizontal = 8.dp)
+                        .clip(RoundedCornerShape(18.dp)).background(ClientPanel),
+                    contentAlignment = Alignment.Center
+                ) {
+                    val path = presentation.mediaPath
+                    if (path == null) {
+                        Text("Медиа истории недоступно", color = ClientMuted)
+                    } else if (presentation.isVideo) {
+                        LoopingVideo(path, Modifier.fillMaxSize())
+                    } else {
+                        LocalMediaImage(path, Modifier.fillMaxSize())
+                    }
+                }
+                if (presentation.caption.isNotBlank()) {
+                    Text(
+                        presentation.caption,
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 16.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LocalMediaImage(path: String, modifier: Modifier = Modifier) {
+    val bitmap by produceState<ImageBitmap?>(initialValue = null, path) {
+        value = withContext(Dispatchers.IO) {
+            BitmapFactory.decodeFile(path)?.asImageBitmap()
+        }
+    }
+    bitmap?.let {
+        Image(it, contentDescription = null, modifier = modifier, contentScale = ContentScale.Fit)
+    } ?: Text("Загружаем медиа…", color = ClientMuted)
+}
+
+@Composable
+private fun LoopingVideo(path: String, modifier: Modifier = Modifier) {
+    var videoView by remember(path) { mutableStateOf<VideoView?>(null) }
+    AndroidView(
+        factory = { context ->
+            VideoView(context).also { view ->
+                videoView = view
+                view.setVideoPath(path)
+                view.setOnPreparedListener { player ->
+                    player.isLooping = true
+                    view.start()
+                }
+            }
+        },
+        modifier = modifier
+    )
+    androidx.compose.runtime.DisposableEffect(videoView) {
+        onDispose { videoView?.stopPlayback() }
     }
 }
 
@@ -584,7 +889,7 @@ private fun LiveChatScreen(repository: TelegramRepository, chat: TelegramChat, o
                 item { Text("Загружаем историю…", color = ClientMuted, modifier = Modifier.padding(12.dp)) }
             }
             items(messages, key = { it.id }) { message ->
-                MessageBubble(message) {
+                MessageBubble(message, repository) {
                     if (message.deletedAt != null) showDeletionHistory = true
                 }
             }
@@ -660,7 +965,11 @@ private fun LiveChatScreen(repository: TelegramRepository, chat: TelegramChat, o
 }
 
 @Composable
-private fun MessageBubble(message: TelegramMessage, onLongPress: () -> Unit) {
+private fun MessageBubble(
+    message: TelegramMessage,
+    repository: TelegramRepository,
+    onLongPress: () -> Unit
+) {
     Row(
         Modifier.fillMaxWidth().then(
             if (message.deletedAt != null) {
@@ -710,10 +1019,49 @@ private fun MessageBubble(message: TelegramMessage, onLongPress: () -> Unit) {
                     fontSize = 9.sp,
                     modifier = Modifier.align(Alignment.End).padding(top = 4.dp)
                 )
+            } else if (message.mediaFileId != null || message.stickerEmoji != null) {
+                StickerMedia(message, repository)
+                Text(formatTime(message.timestamp), color = Color(0xFFD8CCDF), fontSize = 9.sp, modifier = Modifier.align(Alignment.End).padding(top = 4.dp))
             } else {
                 Text(message.text, color = Color.White, fontSize = 14.sp, modifier = Modifier.padding(top = 2.dp))
                 Text(formatTime(message.timestamp), color = Color(0xFFD8CCDF), fontSize = 9.sp, modifier = Modifier.align(Alignment.End).padding(top = 4.dp))
             }
+        }
+    }
+}
+
+@Composable
+private fun StickerMedia(message: TelegramMessage, repository: TelegramRepository) {
+    val fileId = message.mediaFileId
+    val path by produceState<String?>(initialValue = null, fileId) {
+        value = try {
+            fileId?.let { repository.downloadFile(it).local.path.takeIf(String::isNotBlank) }
+        } catch (_: Exception) {
+            null
+        }
+    }
+    val bitmap by produceState<ImageBitmap?>(initialValue = null, path) {
+        value = withContext(Dispatchers.IO) {
+            path?.let { BitmapFactory.decodeFile(it)?.asImageBitmap() }
+        }
+    }
+    if (path?.endsWith(".webm", ignoreCase = true) == true) {
+        LoopingVideo(path, Modifier.size(150.dp))
+    } else if (bitmap != null) {
+        Image(
+            bitmap!!,
+            contentDescription = message.stickerEmoji ?: "Стикер",
+            modifier = Modifier.size(150.dp),
+            contentScale = ContentScale.Fit
+        )
+    } else {
+        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(vertical = 7.dp)) {
+            Text(message.stickerEmoji ?: "✨", color = Color.White, fontSize = 48.sp)
+            Text(
+                if (message.isPremiumSticker) "Premium sticker" else "Стикер",
+                color = if (message.isPremiumSticker) ClientViolet else ClientMuted,
+                fontSize = 10.sp
+            )
         }
     }
 }
