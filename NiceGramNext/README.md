@@ -1,6 +1,6 @@
 # NiceGram Next
 
-This is an isolated Kotlin/Jetpack Compose app, so the existing NiceGram client remains untouched. The first UI preview now includes animated chat, archive, and settings screens, searchable demo conversations, a sample chat, and MTProto proxy-link parsing.
+This is an isolated Kotlin/Jetpack Compose app, so the existing NiceGram client remains untouched. The animated violet-and-red UI preview includes chat, archive, and settings screens, searchable demo conversations, a sample chat, and MTProto proxy-link parsing.
 
 ## Build
 

@@ -102,7 +102,7 @@ private val Ink = Color(0xFF090A10)
 private val Panel = Color(0xFF141620)
 private val PanelRaised = Color(0xFF1B1E2A)
 private val Lavender = Color(0xFFB99AFF)
-private val Blue = Color(0xFF7D9DFF)
+private val Rose = Color(0xFFFF637D)
 private val Muted = Color(0xFF85899B)
 
 class MainActivity : ComponentActivity() {
@@ -117,7 +117,7 @@ private fun NiceGramTheme(content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = darkColorScheme(
             primary = Lavender,
-            secondary = Blue,
+            secondary = Rose,
             background = Ink,
             surface = Panel,
             onSurface = Color(0xFFF4F2FA)
@@ -209,7 +209,7 @@ private fun AmbientBackdrop() {
         )
         drawCircle(
             Brush.radialGradient(
-                listOf(Color(0x22234C94), Color.Transparent),
+                listOf(Color(0x33A92F55), Color.Transparent),
                 center = Offset(size.width * 0.05f, size.height * 0.6f),
                 radius = size.width * 0.65f
             ),
@@ -287,7 +287,7 @@ private fun ChatsScreen(onOpenChat: (Conversation) -> Unit) {
             }
             Box(
                 Modifier.size(46.dp).clip(CircleShape)
-                    .background(Brush.linearGradient(listOf(Lavender, Blue))),
+                    .background(Brush.linearGradient(listOf(Lavender, Rose))),
                 contentAlignment = Alignment.Center
             ) {
                 Text("N", color = Ink, fontSize = 19.sp, fontWeight = FontWeight.Bold)
@@ -402,7 +402,7 @@ private fun StoriesRow() {
                 Box(
                     Modifier.size(58.dp).scale(if (label == "Твоя история") 1f else pulse)
                         .clip(CircleShape)
-                        .background(Brush.linearGradient(listOf(Lavender, Blue)))
+                        .background(Brush.linearGradient(listOf(Lavender, Rose)))
                         .padding(2.dp)
                         .clip(CircleShape)
                         .background(Color(0xFF191B27)),
@@ -442,7 +442,7 @@ private fun ChatRow(chat: Conversation, onClick: () -> Unit) {
         Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(chat.time, color = if (chat.unread > 0) Lavender else Muted, fontSize = 10.sp)
             if (chat.unread > 0) Box(
-                Modifier.clip(CircleShape).background(Brush.linearGradient(listOf(Lavender, Blue)))
+                Modifier.clip(CircleShape).background(Brush.linearGradient(listOf(Lavender, Rose)))
                     .padding(horizontal = 7.dp, vertical = 3.dp),
                 contentAlignment = Alignment.Center
             ) { Text(chat.unread.toString(), color = Ink, fontWeight = FontWeight.Bold, fontSize = 10.sp) }
@@ -480,7 +480,7 @@ private fun ArchiveScreen() {
 }
 
 @Composable
-private fun SettingsScreen(proxies: List<ProxyLink>) {
+private fun SettingsScreen(proxies: MutableList<ProxyLink>) {
     var showProxyForm by remember { mutableStateOf(false) }
     Column(
         Modifier.fillMaxSize().padding(
@@ -671,7 +671,7 @@ private fun MessageBubble(text: String, time: String, outgoing: Boolean) {
                     bottomEnd = if (outgoing) 5.dp else 18.dp
                 )
             )
-                .background(if (outgoing) Brush.linearGradient(listOf(Color(0xFF7156A8), Color(0xFF4F67A9))) else SolidColor(PanelRaised))
+                .background(if (outgoing) Brush.linearGradient(listOf(Color(0xFF8A4F9F), Color(0xFFB74764))) else SolidColor(PanelRaised))
                 .padding(horizontal = 14.dp, vertical = 10.dp)
         ) {
             Text(text, color = Color.White, fontSize = 14.sp)
