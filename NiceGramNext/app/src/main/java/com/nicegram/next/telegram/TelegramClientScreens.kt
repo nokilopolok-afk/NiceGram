@@ -1263,6 +1263,7 @@ private fun SettingsScreen(
     val ghostMode by repository.ghostMode.collectAsState()
     var showProxyForm by remember { mutableStateOf(false) }
     var showAdminPanel by remember { mutableStateOf(false) }
+    var showNiceGramOptions by remember { mutableStateOf(false) }
     if (showAdminPanel) {
         AdminPanel(repository, onBack = { showAdminPanel = false })
         return
@@ -1286,46 +1287,54 @@ private fun SettingsScreen(
                 )
             }
         }
-        item { SettingsSectionTitle("Чаты") }
+        item { SettingsSectionTitle("Дополнительно") }
         item {
             SettingRow(
-                icon = Icons.Default.Archive,
-                title = "Архив удалённых сообщений",
-                subtitle = "Локально сохранять новые входящие сообщения",
-                onClick = onOpenArchive,
-                trailing = {
-                    Switch(checked = archiveEnabled, onCheckedChange = repository::setArchiveEnabled)
-                }
+                icon = Icons.Default.Settings,
+                title = "Функции NiceGram",
+                subtitle = "Архив сообщений, приватность и подключение",
+                onClick = { showNiceGramOptions = !showNiceGramOptions }
             )
         }
-        item { SettingsSectionTitle("Конфиденциальность") }
-        item {
-            SettingRow(
-                icon = Icons.Default.Shield,
-                title = "Режим призрака",
-                subtitle = "Не показывать статус «в сети»; новые сообщения остаются непрочитанными",
-                trailing = { Switch(checked = ghostMode, onCheckedChange = repository::setGhostMode) }
-            )
+        if (showNiceGramOptions) {
+            item { SettingsSectionTitle("NiceGram") }
+            item {
+                SettingRow(
+                    icon = Icons.Default.Archive,
+                    title = "Архив удалённых сообщений",
+                    subtitle = "Локально сохранять новые входящие сообщения",
+                    onClick = onOpenArchive,
+                    trailing = {
+                        Switch(checked = archiveEnabled, onCheckedChange = repository::setArchiveEnabled)
+                    }
+                )
+            }
+            item {
+                SettingRow(
+                    icon = Icons.Default.Shield,
+                    title = "Режим призрака",
+                    subtitle = "Управлять онлайн-статусом и отметкой прочтения",
+                    trailing = { Switch(checked = ghostMode, onCheckedChange = repository::setGhostMode) }
+                )
+            }
+            item {
+                SettingRow(
+                    icon = Icons.Default.Shield,
+                    title = "MTProto-прокси",
+                    subtitle = "Настроить подключение через TDLib",
+                    onClick = { showProxyForm = !showProxyForm }
+                )
+            }
+            if (showProxyForm) item { ProxyForm(repository) }
+            item {
+                SettingRow(
+                    icon = Icons.Default.ChatBubbleOutline,
+                    title = "Состояние соединения",
+                    subtitle = connection
+                )
+            }
         }
-        item { SettingsSectionTitle("Подключение") }
-        item {
-            SettingRow(
-                icon = Icons.Default.Shield,
-                title = "MTProto-прокси",
-                subtitle = "Настроить подключение через TDLib",
-                onClick = { showProxyForm = !showProxyForm }
-            )
-        }
-        if (showProxyForm) item { ProxyForm(repository) }
-        item {
-            SettingRow(
-                icon = Icons.Default.ChatBubbleOutline,
-                title = "Состояние соединения",
-                subtitle = connection
-            )
-        }
-        item { SettingsSectionTitle("NiceGram") }
-        if (isDeveloperAccount) {
+        if (showNiceGramOptions && isDeveloperAccount) {
             item {
                 SettingRow(
                     icon = Icons.Default.Settings,
