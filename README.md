@@ -52,7 +52,7 @@ Firebase must use the package `com.nicegram.app`.
 
 ### GitHub Actions
 
-Push to `main`, `master`, or `rewrite`, or run **Build NiceGram APK and AAB** manually. Artifacts:
+Push to `main` or `master`, or run **Build NiceGram APK and AAB** manually from the Actions tab. Pushing to `rewrite` will not start the build automatically. Artifacts:
 
 - `NiceGram-apk`: release universal APK
 - `NiceGram-aab`: Android App Bundle
