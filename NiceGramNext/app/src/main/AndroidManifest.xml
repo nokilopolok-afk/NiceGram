@@ -3,7 +3,7 @@
 
     <application
         android:allowBackup="false"
-        android:label="NiceGram Next"
+        android:label="NiceGram"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Material.NoActionBar">
         <activity

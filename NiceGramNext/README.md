@@ -19,3 +19,5 @@ Local message archiving is opt-in and disabled by default. It records only incom
 Ghost mode sets TDLib's `online` option to false while enabled and this client does not call TDLib's `ViewMessages` method when opening chat history. It is intended to keep the account offline and avoid this client explicitly marking fetched messages as read; Telegram may still apply server-side presence/read behavior, and the feature cannot hide activity performed in other clients or override account privacy rules.
 
 Set `NICEGRAM_API_ID` and `NICEGRAM_API_HASH` as local Gradle environment variables or GitHub Actions secrets. Obtain credentials from [my.telegram.org](https://my.telegram.org); do not commit them or post them in chat.
+
+To use a custom NiceGram avatar on the sign-in and registration screens, add a square PNG named `nicegram_avatar.png` to `app/src/main/assets/`. A 512×512 image is recommended. If the file is absent, the animated NiceGram mark is shown.

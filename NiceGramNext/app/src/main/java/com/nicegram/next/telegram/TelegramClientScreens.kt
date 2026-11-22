@@ -101,6 +101,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import android.graphics.BitmapFactory
 import android.widget.VideoView
@@ -191,8 +192,8 @@ fun TelegramClientApp(repository: TelegramRepository) {
                     }
                 }
                 is TelegramAuthState.Phone -> AuthForm(
-                    title = "Твоя Telegram",
-                    detail = "Войди по номеру телефона. Код придёт в Telegram или по SMS.",
+                    title = "Добро пожаловать в NiceGram",
+                    detail = "Введите номер телефона, чтобы войти или создать аккаунт. Код подтверждения отправит Telegram.",
                     label = "Номер телефона",
                     hint = "+7 900 000-00-00",
                     error = state.error,
@@ -343,14 +344,7 @@ private fun AuthForm(
                 .background(ClientPanel).border(1.dp, Color(0x26FFFFFF), RoundedCornerShape(28.dp))
                 .padding(22.dp)
         ) {
-            Box(
-                Modifier.size(66.dp).graphicsLayer { scaleX = pulse; scaleY = pulse }
-                    .clip(CircleShape)
-                    .background(Brush.linearGradient(listOf(ClientViolet, ClientRed))),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(Icons.AutoMirrored.Filled.Send, null, tint = Color.White, modifier = Modifier.size(28.dp))
-            }
+            BrandMark(size = 66.dp, pulse = pulse)
             Text("NICEGRAM", color = ClientViolet, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp, modifier = Modifier.padding(top = 18.dp))
             Text(title, color = Color.White, fontSize = 27.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 7.dp))
             Text(detail, color = ClientMuted, fontSize = 13.sp, lineHeight = 19.sp, modifier = Modifier.padding(top = 8.dp, bottom = 22.dp))
@@ -412,12 +406,39 @@ private fun AuthMark() {
         animationSpec = infiniteRepeatable(tween(1800), repeatMode = RepeatMode.Reverse),
         label = "registration-mark-pulse"
     )
+    BrandMark(size = 66.dp, pulse = pulse)
+}
+
+@Composable
+private fun BrandMark(size: Dp, pulse: Float) {
+    val context = LocalContext.current
+    val avatar by produceState<ImageBitmap?>(initialValue = null, context) {
+        value = withContext(Dispatchers.IO) {
+            try {
+                context.assets.open("nicegram_avatar.png").use { stream ->
+                    BitmapFactory.decodeStream(stream)?.asImageBitmap()
+                }
+            } catch (_: java.io.IOException) {
+                null
+            }
+        }
+    }
     Box(
-        Modifier.size(66.dp).graphicsLayer { scaleX = pulse; scaleY = pulse }
-            .clip(CircleShape).background(Brush.linearGradient(listOf(ClientViolet, ClientRed))),
+        Modifier.size(size).graphicsLayer { scaleX = pulse; scaleY = pulse }
+            .clip(CircleShape)
+            .background(Brush.linearGradient(listOf(ClientViolet, ClientRed))),
         contentAlignment = Alignment.Center
     ) {
-        Icon(Icons.AutoMirrored.Filled.Send, null, tint = Color.White, modifier = Modifier.size(28.dp))
+        if (avatar != null) {
+            Image(
+                bitmap = avatar!!,
+                contentDescription = "Аватар NiceGram",
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+        } else {
+            Icon(Icons.AutoMirrored.Filled.Send, null, tint = Color.White, modifier = Modifier.size(size * 0.43f))
+        }
     }
 }
 
